@@ -1,5 +1,7 @@
+import json
 import os
 import requests
+from django.core.serializers.json import DjangoJSONEncoder
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.utils.translation import override
@@ -10,9 +12,19 @@ from django.db.models.fields import CharField, TextField
 from weasyprint import HTML
 from django.contrib.auth import get_user_model
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+MODEL = "openai/gpt-4.1"
+
+
+def get_client():
+    return OpenAI(
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url=OPENROUTER_BASE_URL,
+    )
+
 
 def translate_model(modeladmin, request, queryset):
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = get_client()
     for obj in queryset:
         translation_opts = translator.get_options_for_model(obj.__class__)
 
@@ -26,14 +38,29 @@ def translate_model(modeladmin, request, queryset):
                         if lang_code == settings.LANGUAGE_CODE:
                             continue
 
-                        response = client.completions.create(model="gpt-3.5-turbo-instruct",
-                                                             prompt=f"Please translate this to {lang_name}: {source_value}",
-                                                             temperature=0.5,
-                                                             max_tokens=1500,
-                                                             top_p=1,
-                                                             frequency_penalty=0,
-                                                             presence_penalty=0)
-                        translated_text = response.choices[0].text.strip()
+                        response = client.chat.completions.create(
+                            model=MODEL,
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are a professional CV translator. "
+                                        "Translate the given text from English to German. "
+                                        "Rules: "
+                                        "1. Keep all IT/tech terms and anglicisms as-is (e.g. Python, Django, REST API, backend, frontend, Git, Docker, CI/CD, etc.). "
+                                        "2. Output ONLY the translated text — no comments, no explanations, no quotes, no markdown. "
+                                        "3. Preserve the original formatting, line breaks and punctuation."
+                                    ),
+                                },
+                                {
+                                    "role": "user",
+                                    "content": source_value,
+                                },
+                            ],
+                            temperature=0.3,
+                            max_tokens=1500,
+                        )
+                        translated_text = response.choices[0].message.content.strip()
                         translated_field_name = f'{field_name}_{lang_code}'
                         setattr(obj, translated_field_name, translated_text)
 
@@ -77,27 +104,36 @@ def export_cover_letter(modeladmin, request, queryset):
 
 def export_cv(modeladmin, request, queryset):
     for job_application in queryset:
-        # Предположим, что в вашей модели language хранится код языка, например 'en' или 'de'
-        language = job_application.language
+        # В job_application.language хранится код языка, например 'en' или 'de'
+        language = job_application.language or 'en'
 
         with override(language):
             user = get_user_model().objects.first()
-            experiences = user.experience_set.all().order_by('order')
+
+            # Подменяем описания опыта на индивидуально сгенерированные под вакансию
+            experiences = list(user.experience_set.all().order_by('order'))
+            custom_descriptions = {
+                je.experience_id: je.description
+                for je in job_application.custom_experiences.all()
+                if je.description
+            }
+            for experience in experiences:
+                if experience.id in custom_descriptions:
+                    setattr(experience, f'description_{language}', custom_descriptions[experience.id])
+
             educations = user.education_set.all().order_by('order')
             skills = user.skill_set.all()
-            projects = user.project_set.all().order_by('order')
-            open_source_projects = user.opensourceproject_set.all()
             context = {
                 'user': user,
                 'experiences': experiences,
                 'educations': educations,
                 'skills': skills,
-                'projects': projects,
-                'open_source_projects': open_source_projects,
                 'about_me': job_application.cv_intro,
             }
 
-            html_string = render_to_string('pdf/pdf_template_custom.html', context)
+            # Используем единый шаблон базового резюме, чтобы адаптированное CV
+            # всегда совпадало с ним по вёрстке
+            html_string = render_to_string('pdf/pdf_template.html', context)
             pdf = HTML(string=html_string).write_pdf()
 
             response = HttpResponse(pdf, content_type='application/pdf')
@@ -105,3 +141,17 @@ def export_cv(modeladmin, request, queryset):
             response['Content-Disposition'] = f'attachment; filename="{file_name}"'
 
         return response
+
+
+def export_json(modeladmin, request, queryset):
+    data = [
+        {field.name: getattr(job_application, field.name) for field in job_application._meta.fields}
+        for job_application in queryset
+    ]
+
+    payload = json.dumps(data, indent=2, ensure_ascii=False, cls=DjangoJSONEncoder)
+    response = HttpResponse(payload, content_type='application/json')
+    response['Content-Disposition'] = 'attachment; filename="job_applications_export.json"'
+    return response
+
+export_json.short_description = "Export selected to JSON (all fields)"
