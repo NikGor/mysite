@@ -24,11 +24,17 @@ from rest_framework.permissions import AllowAny
 from django.utils.translation import override
 
 
-def force_german(view_func):
-    def _wrapped_view_func(request, *args, **kwargs):
-        with override('de'):
-            return view_func(request, *args, **kwargs)
-    return _wrapped_view_func
+def force_language(lang):
+    def decorator(view_func):
+        def _wrapped_view_func(request, *args, **kwargs):
+            with override(lang):
+                return view_func(request, *args, **kwargs)
+        return _wrapped_view_func
+    return decorator
+
+
+force_english = force_language('en')
+force_german = force_language('de')
 
 
 schema_view = get_schema_view(
@@ -46,12 +52,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path('', IndexView.as_view(), name='index'),
     path('404/', PageNotFoundView.as_view(), name='404'),
-    path('export2pdf/', ExportPDFView.as_view(), name='export2pdf'),
-    path('pdf/', PDFview.as_view(), name='pdf'),
+    path('export2pdf/', force_english(ExportPDFView.as_view()), name='export2pdf'),
+    path('pdf/', force_english(PDFview.as_view()), name='pdf'),
     path("api/", include("mysite.job_application.urls")),
     path("docs/", schema_view.with_ui("swagger", cache_timeout=0), name="schema-swagger-ui"),
-    path('export2pdf/de/', force_german(ExportPDFView.as_view()), name='export2pdf'),
-    path('pdf/de/', force_german(PDFview.as_view()), name='pdf'),
+    path('export2pdf/de/', force_german(ExportPDFView.as_view()), name='export2pdf_de'),
+    path('pdf/de/', force_german(PDFview.as_view()), name='pdf_de'),
 ]
 
 if settings.DEBUG:
