@@ -7,7 +7,8 @@ from mysite.job_application.models import JobApplication, JobApplicationExperien
 from mysite.job_application.parser import get_experience_description, get_cv_intro, get_cover_letter, \
     get_company_research, get_ats_score, get_company_address, geocode_address, extract_company_employees, \
     get_company_website
-from scripts.utils import export_cover_letter, export_cv, export_json
+from scripts.utils import export_cover_letter_txt, export_cover_letter_md, export_cover_letter_pdf, export_cv, \
+    export_json
 
 
 class ATSScoreRangeFilter(admin.SimpleListFilter):
@@ -119,7 +120,7 @@ def regenerate_all(modeladmin, request, queryset):
                     defaults={'description': description},
                 )
 
-            job_application.save()
+            job_application.save(update_fields=['cv_intro', 'cover_letter'])
         except Exception as e:
             print(f"regenerate_all failed for job_application id={job_application.id}: {e}")
 
@@ -222,7 +223,11 @@ def research_company(modeladmin, request, queryset):
                 f"Не хватает:\n{missing}"
             )
 
-        job_application.save()
+        job_application.save(update_fields=[
+            'company_website', 'company_research', 'company_employees',
+            'company_address', 'company_lat', 'company_lng',
+            'ats_score', 'ats_verdict', 'ats_assessment',
+        ])
 
 research_company.short_description = "Research company (web search + address/map + ATS score, Gemini 2.5)"
 
@@ -262,11 +267,18 @@ class JobApplicationForm(forms.ModelForm):
 class JobApplicationAdmin(admin.ModelAdmin):
     form = JobApplicationForm
     inlines = [JobApplicationExperienceInline]
-    actions = [regenerate_all, research_company, export_cover_letter, export_cv, export_json]
+
+    class Media:
+        css = {'all': ('admin/css/sticky_changelist_header.css',)}
+    actions = [
+        regenerate_all, research_company,
+        export_cover_letter_txt, export_cover_letter_md, export_cover_letter_pdf,
+        export_cv, export_json,
+    ]
     list_display = (
         'id', 'logo_preview', 'date_added', 'company_link', 'job_title', 'location',
         'is_remote', 'is_agency', 'is_switzerland', 'company_employees',
-        'ats_score', 'ats_verdict', 'required_experience', 'salary_range', 'application_instructions_icon',
+        'ats_score', 'required_experience', 'salary_range', 'application_instructions_icon',
         'application_sent', 'response_received',
         'not_interested', 'is_closed', 'status', 'phone_interview_date', 'onsite_interview_date', 'contact_person',
     )
@@ -280,7 +292,14 @@ class JobApplicationAdmin(admin.ModelAdmin):
         'onsite_interview_date', 'status',
     )
     search_fields = ('company_name', 'job_title', 'key_skills', 'location', 'contact_person', 'notes')
-    readonly_fields = ('date_added', 'map_preview')
+    readonly_fields = ('date_added', 'map_preview', 'url_link')
+
+    def url_link(self, obj):
+        if not obj.url:
+            return ''
+        return format_html('<a href="{0}" target="_blank" rel="noopener noreferrer">{0}</a>', obj.url)
+
+    url_link.short_description = 'Open URL'
 
     fieldsets = (
         ('ATS score (my CV vs vacancy)', {
@@ -288,7 +307,7 @@ class JobApplicationAdmin(admin.ModelAdmin):
         }),
         ('Vacancy', {
             'fields': (
-                'full_text_ru', 'company_name', 'job_title', 'url', 'location', 'is_remote', 'is_agency',
+                'full_text_ru', 'company_name', 'job_title', 'url', 'url_link', 'location', 'is_remote', 'is_agency',
                 'is_switzerland', 'contact_person', 'company_website', 'company_address', 'company_lat',
                 'company_lng', 'map_preview', 'application_instructions',
             )
