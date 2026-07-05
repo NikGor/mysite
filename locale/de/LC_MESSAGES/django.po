@@ -46,6 +46,12 @@ msgstr "Sprachen & Digitale Skills"
 msgid "Work Experience:"
 msgstr "Berufserfahrung:"
 
+msgid "Previous Experience:"
+msgstr "Frühere Berufserfahrung:"
+
+msgid "Skills:"
+msgstr "Kenntnisse:"
+
 #: templates/pdf/pdf_template.html:135
 msgid "Education & Training:"
 msgstr "Bildung & Training:"
