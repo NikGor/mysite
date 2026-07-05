@@ -14,14 +14,6 @@
                 </a>
             </div>
             <div class="col-12 col-md-9">
-                <nav class="nav nav-tabs my-3" id="nav-tab" role="tablist">
-                    <a class="nav-link active" id="nav-cv-tab" data-bs-toggle="tab" href="#nav-cv" role="tab">
-                        <i class="bi bi-briefcase mx-1"></i>CV
-                    </a>
-                    <a class="nav-link" id="nav-github-tab" data-bs-toggle="tab" href="#nav-github"
-                       role="tab">
-                        <i class="bi bi-github mx-1"></i>Github</a>
-                </nav>
                 <div class="tab-content" id="nav-tabContent">
                     <div class="tab-pane fade show active" id="nav-cv" role="tabpanel">
                         <div class="row">
@@ -36,10 +28,6 @@
                                 </p>
                             </div>
                         </div>
-                        <img src="{% static 'NikGorCertificate.png' %}"
-                             class="my-3"
-                             alt="NikGor_certificate"
-                             height="300px">
                         <div class="row">
                             <div class="col">
                                 <h4><strong>{% trans "Summary:" %}</strong></h4>
@@ -61,22 +49,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="flush-headingFour">
-                                    <button class="accordion-button collapsed" type="button"
-                                            data-bs-toggle="collapse"
-                                            data-bs-target="#flush-collapseFour" aria-expanded="false"
-                                            aria-controls="flush-collapseFour">
-                                        {% trans "Open Source Projects" %}
-                                    </button>
-                                </h2>
-                                <div id="flush-collapseFour" class="accordion-collapse collapse show"
-                                     aria-labelledby="flush-headingTwo" data-bs-parent="#accordionFlush">
-                                    <div class="accordion-body">
-                                        {% include 'open_source/open_source.html' %}
-                                    </div>
-                                </div>
-                            </div>
+
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="flush-headingTwo">
                                     <button class="accordion-button collapsed" type="button"
@@ -93,28 +66,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="flush-headingThree">
-                                    <button class="accordion-button collapsed" type="button"
-                                            data-bs-toggle="collapse"
-                                            data-bs-target="#flush-collapseThree" aria-expanded="false"
-                                            aria-controls="flush-collapseThree">
-                                        {% trans "Languages & Digital Skills" %}
-                                    </button>
-                                </h2>
-                                <div id="flush-collapseThree" class="accordion-collapse collapse show"
-                                     aria-labelledby="flush-headingThree" data-bs-parent="#accordionFlush">
-                                    <div class="accordion-body">
-                                        {% include 'skills/skills.html' %}
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
-                    <div class="tab-pane fade" id="nav-github" role="tabpanel">
-                        {% include 'projects/project.html' %}
-                    </div>
-                </div>
             </div>
         </div>
     </div>
