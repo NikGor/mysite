@@ -94,12 +94,61 @@ def create_screenshot(modeladmin, request, queryset):
                 project.save()
 
 
-def export_cover_letter(modeladmin, request, queryset):
+def _cover_letter_base_name(job_application):
+    return f"{os.getenv('MY_NAME')}_{job_application.company_name}_cover_letter"
+
+
+def _cover_letter_markdown(job_application):
+    content = job_application.cover_letter or ''
+    raw_paragraphs = content.split('\n\n')
+
+    # Cover letter's last paragraph is "Signoff\nSenderName" - bold the sender name
+    # when rendering as markdown.
+    md_paragraphs = []
+    for paragraph in raw_paragraphs:
+        lines = paragraph.split('\n')
+        if len(lines) > 1:
+            lines[-1] = f"**{lines[-1]}**"
+        md_paragraphs.append('  \n'.join(lines))
+    return '\n\n'.join(md_paragraphs)
+
+
+def _cover_letter_pdf(job_application):
+    content = job_application.cover_letter or ''
+    raw_paragraphs = content.split('\n\n')
+    html_string = render_to_string('pdf/cover_letter.html', {
+        'paragraphs': [paragraph.split('\n') for paragraph in raw_paragraphs],
+        'sender_name': os.getenv('MY_NAME', ''),
+        'language': job_application.language or 'en',
+    })
+    return HTML(string=html_string).write_pdf()
+
+
+def export_cover_letter_txt(modeladmin, request, queryset):
     job_application = queryset.first()
-    response = HttpResponse(job_application.cover_letter, content_type='text/plain')
-    file_name = f"{os.getenv('MY_NAME')}_{job_application.company_name}_cover_letter.txt"
-    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    response = HttpResponse(job_application.cover_letter or '', content_type='text/plain')
+    response['Content-Disposition'] = f'attachment; filename="{_cover_letter_base_name(job_application)}.txt"'
     return response
+
+export_cover_letter_txt.short_description = "Export cover letter (TXT)"
+
+
+def export_cover_letter_md(modeladmin, request, queryset):
+    job_application = queryset.first()
+    response = HttpResponse(_cover_letter_markdown(job_application), content_type='text/markdown')
+    response['Content-Disposition'] = f'attachment; filename="{_cover_letter_base_name(job_application)}.md"'
+    return response
+
+export_cover_letter_md.short_description = "Export cover letter (Markdown)"
+
+
+def export_cover_letter_pdf(modeladmin, request, queryset):
+    job_application = queryset.first()
+    response = HttpResponse(_cover_letter_pdf(job_application), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{_cover_letter_base_name(job_application)}.pdf"'
+    return response
+
+export_cover_letter_pdf.short_description = "Export cover letter (PDF)"
 
 
 def export_cv(modeladmin, request, queryset):
