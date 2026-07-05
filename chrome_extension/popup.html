@@ -1,31 +1,105 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>URL Parser</title>
-  <!-- Подключение минифицированной CSS Bootstrap -->
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <meta charset="utf-8">
+  <title>Vacancy Parser</title>
+  <style>
+    :root {
+      --accent: #0d6efd;
+      --accent-dark: #0b5ed7;
+      --bg: #ffffff;
+      --text: #1a1a1a;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --danger: #dc3545;
+      --success: #198754;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    header img { width: 28px; height: 28px; }
+    header h1 { font-size: 15px; font-weight: 600; margin: 0; }
+    main { padding: 16px 18px; }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn:last-of-type { margin-bottom: 0; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-secondary { background: #f3f4f6; color: var(--text); }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn:disabled { opacity: 0.6; cursor: default; }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .btn-secondary .spinner { border-color: rgba(0,0,0,0.15); border-top-color: var(--text); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #status {
+      margin-top: 14px;
+      display: none;
+      font-size: 12.5px;
+      line-height: 1.5;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    #status.success { display: block; background: #ecfdf3; color: var(--success); border: 1px solid #b7ebc6; }
+    #status.error { display: block; background: #fef2f2; color: var(--danger); border: 1px solid #f5c2c7; }
+    #status strong { display: block; margin-bottom: 2px; font-size: 13px; }
+    footer {
+      padding: 10px 18px 14px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
 </head>
-<style>
-  #loading-spinner {
-    display: none;
-  }
-</style>
 <body>
-  <div class="container" style="min-width: 400px; min-height: 300px;">
-    <h1 class="mt-5">Vacancy Parser</h1>
-    <div id="loading-spinner" class="spinner-border text-primary m-2" role="status">
-      <span class="sr-only">Loading...</span>
-    </div>
-    <button id="parse-btn" class="btn btn-primary m-2">Parse Current Page</button>
-    <button id="text-parse-btn" class="btn btn-secondary m-2">Parse Selected Text</button>
-    <button id="create-cover-btn" class="btn btn-success m-2">Create Cover Letter</button>
-    <button id="adapt-cv-btn" class="btn btn-success m-2">Adapt CV</button>
-  </div>
-
+  <header>
+    <img src="icons/icon48.png" alt="">
+    <h1>Vacancy Parser</h1>
+  </header>
+  <main>
+    <button id="parse-btn" class="btn btn-primary">
+      <span class="spinner" id="parse-spinner"></span>
+      <span>Parse Current Page</span>
+    </button>
+    <button id="text-parse-btn" class="btn btn-secondary">
+      <span class="spinner" id="text-spinner"></span>
+      <span>Parse Selected Text</span>
+    </button>
+    <div id="status"></div>
+  </main>
+  <footer>Saves the result to your job application dashboard</footer>
   <script src="popup.js"></script>
-  <!-- Подключение зависимостей Bootstrap JS, Popper.js, и jQuery -->
-  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.6/dist/umd/popper.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
