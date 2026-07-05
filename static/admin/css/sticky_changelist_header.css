@@ -1,0 +1,16 @@
+/* CSS forces overflow-y to compute as "auto" whenever overflow-x isn't "visible" (and
+   Django already sets overflow-x:auto on .results for horizontal scroll on wide
+   tables) - so .results always ends up as its own scroll container, never the
+   viewport. Give it a bounded height so that scroll container is real and visible,
+   and make the header sticky within it. */
+#changelist-form .results {
+    max-height: 75vh;
+}
+
+#result_list thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--body-bg);
+    box-shadow: 0 1px 0 var(--hairline-color);
+}
