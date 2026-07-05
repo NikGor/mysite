@@ -114,12 +114,12 @@
                 </div>
                 <div class="contact-info">
                     <div><i class="fas fa-map-marker-alt"></i> {{ user.location }}</div>
-                    <div><i class="fas fa-check"></i> Ready to relocate</div>
+                    {% if user.is_relocatable %}<div><i class="fas fa-check"></i> Ready to relocate</div>{% endif %}
                     <div><i class="fas fa-birthday-cake"></i> {{ user.birth_date }}</div>
                     <div><i class="fas fa-envelope"></i> {{ user.email }}</div>
-                    <div><i class="fas fa-linkedin"></i> {{ user.linkedin }}</div>
+                    <div><i class="fab fa-linkedin"></i> {{ user.linkedin }}</div>
                     <div><i class="fas fa-phone"></i> {{ user.phone_number }}</div>
-                    <div><i class="fas fa-globe"></i> <a href="{{ user.website }}">{{ user.website }}</a></div>
+                    <div><i class="fab fa-github"></i> <a href="https://{{ user.github }}">{{ user.github }}</a></div>
                 </div>
             </div>
         </header>
@@ -130,8 +130,13 @@
         </section>
         <h3>{% trans "Work Experience:" %}</h3>
         <hr>
+        <section>
+            {% include 'pdf/experience.html' with mode='current' %}
+        </section>
+        <h3>{% trans "Previous Experience:" %}</h3>
+        <hr>
         <section class="work-experience">
-            {% include 'pdf/experience.html' %}
+            {% include 'pdf/experience.html' with mode='previous' %}
         </section>
         <h3 class="new-page">{% trans "Education & Training:" %}</h3>
         <hr>
