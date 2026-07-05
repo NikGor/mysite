@@ -289,8 +289,8 @@ class JobApplicationAdmin(admin.ModelAdmin):
         ('Vacancy', {
             'fields': (
                 'full_text_ru', 'company_name', 'job_title', 'url', 'location', 'is_remote', 'is_agency',
-                'is_switzerland', 'contact_person', 'company_website', 'company_address', 'map_preview',
-                'application_instructions',
+                'is_switzerland', 'contact_person', 'company_website', 'company_address', 'company_lat',
+                'company_lng', 'map_preview', 'application_instructions',
             )
         }),
         ('Language & requirements', {
