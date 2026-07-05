@@ -1,0 +1,98 @@
+You are helping write specific parts of a FIXED-STRUCTURE cover letter for the position
+{{ job_title }} at {{ company_name }}, in {{ language_name }}. My German/English level is
+B1 - write simply and naturally, no corporate cliches.
+{% if language == 'de' %}{% include '_de_anglicisms_rule.j2' %}
+{% endif %}
+
+The full letter always has this structure. You write ONLY parts 1, 3 and 5 below — parts
+2 and 4 are fixed boilerplate already written elsewhere and are shown to you only as
+context, so your parts 3 and 5 flow naturally into and out of them. Do not repeat their
+content and do not write a sign-off/signature - that is also added separately.
+
+1. GREETING (you write this)
+2. Fixed paragraph: current role at Wuerth IT, a short intro to the Wuerth Group, and a
+   one-line mention of PICO (already written, shown below for context)
+3. MIDDLE PARAGRAPH (you write this): current work relevant to this vacancy, plus an
+   honest, positive acknowledgment of one gap
+4. Fixed paragraph: the concrete PICO achievement - Human-in-the-Loop, safe SAP writes,
+   the Tagesschau feature (already written, shown below for context)
+5. CLOSING PARAGRAPH (you write this): how this experience is useful specifically for
+   this role/company
+
+Return JSON with exactly these 3 fields: "greeting", "middle_paragraph",
+"closing_paragraph".
+
+HARD CONSTRAINT, no exceptions: the word "Python" must NEVER appear anywhere in your
+output, in any language, even if it is in the skills list or the CV introduction below.
+It is too generic/banal to be a differentiator. Describe the surrounding
+technology/framework/system instead of naming the language. Before returning your
+answer, re-read both "middle_paragraph" and "closing_paragraph" and if the word "Python"
+appears anywhere, rewrite that sentence to remove it.
+
+Fixed paragraph 2 (context only, do not repeat):
+"""
+{{ wurth_intro }}
+"""
+
+Fixed paragraph 4 (context only, do not repeat):
+"""
+{{ pico_differentiator }}
+"""
+
+GREETING rules: {% if contact_person %}address {{ contact_person }} directly (Herr/Frau +
+surname, or Mr./Ms. + surname){% else %}use a neutral greeting that names the company,
+e.g. "Sehr geehrtes {{ company_name }}-Team" / "Dear {{ company_name }} Hiring
+Team"{% endif %}. End with a comma. No body text in this field.
+
+MIDDLE_PARAGRAPH rules:
+- ANTI-HALLUCINATION (highest priority): only mention skills, tools, or experience that
+  appear in the CV introduction below. Never invent an achievement, metric, or tool that
+  isn't there.
+- Pick 2-4 skills from the CV introduction that best match what this vacancy needs (see
+  the ATS fit analysis below if provided) and weave them into 1-2 sentences about current
+  work — not a bare keyword list. Remember the HARD CONSTRAINT above about "Python".
+- Then add one honest, SHORT, positively-framed sentence naming a single gap relative to
+  this vacancy's requirements (use the ATS fit analysis's missing skills if provided,
+  otherwise the most obvious mismatch between the vacancy's required skills and the CV
+  introduction) — e.g. "I have not yet worked with X professionally, but I enjoy picking
+  up new tools quickly and am not afraid of unfamiliar territory." If there is genuinely
+  no clear gap, skip this sentence rather than inventing one.
+- 3-5 sentences total.
+
+CLOSING_PARAGRAPH rules:
+- Connect the concrete PICO achievement (paragraph 4 above) and/or the skills from your
+  middle paragraph to what THIS specific company/role actually needs - show genuine
+  understanding of what they do, grounded in the job vacancy or company research below,
+  not generic praise that could apply to any company.
+{% if is_agency %}
+{% include '_cover_letter_agency_notice.j2' %}
+{% endif %}
+- 1-3 sentences. Do not restate the greeting or add a sign-off.
+
+{% if ats_context %}
+ATS FIT ANALYSIS for this specific vacancy - use it strategically:
+- Treat 'Совпадающие навыки' (matched skills) as your priority pool for the 2-4 skills
+  you mention in the middle paragraph.
+- Use 'Не хватает' (missing skills) or 'Риски отсева по hard-фильтрам' as the source for
+  the one gap you name in the middle paragraph - pick whichever single gap is most
+  relevant and least disqualifying, and frame it positively as described above.
+- Calibrate confidence to the verdict: 'Подходит' -> write with confidence; 'Условно
+  подходит' -> stay focused on the strongest matches; 'Не подходит' -> keep the tone
+  humble and growth-oriented.
+
+Full ATS analysis:
+{{ ats_context }}
+{% endif %}
+{% if company_context %}
+{% include '_cover_letter_company_section.j2' %}
+{% endif %}
+{% if cv_intro %}
+
+My actual CV introduction (only mention skills that appear here):
+{{ cv_intro }}
+{% endif %}
+{% if sample %}
+
+Style/tone reference:
+{{ sample }}
+{% endif %}
