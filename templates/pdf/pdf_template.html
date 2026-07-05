@@ -13,53 +13,70 @@
         font-family: 'Arial', sans-serif;
         font-size: 10px;
         font-weight: lighter;
+        line-height: 1.2;
         margin: 0;
-        padding: 10px;
-        background-color: #f7f7f7;
+        padding: 0;
+        background-color: #fff;
     }
 
     @page {
-      margin: 0; /* Задает одинаковые поля со всех сторон */
+        size: A4;
+        margin: 6mm;
     }
 
     .cv-container {
         max-width: 800px;
         margin: auto;
         background-color: #fff;
-        padding: 30px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        padding: 4px 18px;
+        min-height: calc(297mm - 12mm);
+        box-sizing: border-box;
     }
     header, section {
-        margin-bottom: 15px;
+        margin-bottom: 6px;
     }
     .header-content {
-        display: flex;
-        justify-content: space-between;
-        padding-bottom: 10px;
+        display: table;
+        width: 100%;
+        padding-bottom: 8px;
+    }
+    .header-left {
+        display: table-cell;
+        vertical-align: middle;
     }
     h1, h2, h3 {
         font-weight: bold;
         margin: 0;
-        padding: 10px 0;
+        padding: 4px 0;
     }
     h1 {
-        font-size: 2em;
+        font-size: 1.9em;
         color: #007bff;
     }
     h2 {
-        font-size: 1.5em;
+        font-size: 1.4em;
         color: #333;
     }
     h3 {
         font-size: 1.3em;
         color: #333;
+        margin-top: 3px;
+    }
+    h4 {
+        font-size: 1.1em;
+        margin: 3px 0 1px 0;
+        padding: 0;
+    }
+    p {
+        margin: 2px 0;
     }
     .contact-info {
+        display: table-cell;
         text-align: right;
-        font-size: 0.8em;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-around;
+        vertical-align: middle;
+        font-size: 0.95em;
+        white-space: nowrap;
+        line-height: 1.8;
     }
     .contact-info i {
         color: #007bff;
@@ -74,71 +91,71 @@
     a:hover {
         text-decoration: underline;
     }
-    @media (max-width: 768px) {
-        .header-content {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .contact-info {
-            align-items: flex-end;
-            text-align: left;
-        }
-    }
     .work-experience {
-        -webkit-column-count: 2; /* Chrome, Safari, Opera */
+        -webkit-column-count: 2;
         column-count: 2;
-        column-gap: 20px; /* Регулирует промежуток между колонками */
+        column-gap: 20px;
+    }
+    .work-experience > div,
+    .education > div {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
     }
     .education {
         column-count: 2;
-        column-gap: 20px; /* Регулирует промежуток между колонками */
+        column-gap: 20px;
     }
     .skills {
-        column-count: 2;
-        column-gap: 20px; /* Регулирует промежуток между колонками */
+        column-count: 3;
+        column-gap: 16px;
     }
-    .new-page {
-        page-break-before: always;
-        margin-top: 10px;
-        padding-top: 50px;
+    .skills > div {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
     }
-
+    hr {
+        margin: 2px 0 5px 0;
+    }
 </style>
 <body>
     <div class="cv-container">
         <header>
             <div class="header-content">
-                <div>
+                <div class="header-left">
                     <h1>{{ user.first_name }} {{ user.last_name }}</h1>
                     <h2>{{ user.job_title }}</h2>
                 </div>
                 <div class="contact-info">
                     <div><i class="fas fa-map-marker-alt"></i> {{ user.location }}</div>
-                    <div><i class="fas fa-check"></i> Ready to relocate</div>
-                    <div><i class="fas fa-birthday-cake"></i> {{ user.birth_date }}</div>
+                    {% if user.is_relocatable %}<div><i class="fas fa-check"></i> Ready to relocate</div>{% endif %}
                     <div><i class="fas fa-envelope"></i> {{ user.email }}</div>
-                    <div><i class="fas fa-linkedin"></i> {{ user.linkedin }}</div>
+                    <div><i class="fab fa-linkedin"></i> {{ user.linkedin }}</div>
+                    <div><i class="fab fa-github"></i> {{ user.github }}</div>
                     <div><i class="fas fa-phone"></i> {{ user.phone_number }}</div>
-                    <div><i class="fas fa-globe"></i> <a href="{{ user.website }}">{{ user.website }}</a></div>
                 </div>
             </div>
         </header>
         <h3>{% trans "About me:" %}</h3>
         <hr>
-        <section>
-            <p>{{ user.about_me|safe }}</p>
+        <section class="prominent">
+            <p>{{ about_me|default:user.about_me|safe }}</p>
         </section>
         <h3>{% trans "Work Experience:" %}</h3>
         <hr>
-        <section class="work-experience">
-            {% include 'pdf/experience.html' %}
+        <section class="prominent">
+            {% include 'pdf/experience.html' with mode='current' %}
         </section>
-        <h3 class="new-page">{% trans "Education & Training:" %}</h3>
+        <h3>{% trans "Previous Experience:" %}</h3>
+        <hr>
+        <section class="work-experience">
+            {% include 'pdf/experience.html' with mode='previous' %}
+        </section>
+        <h3>{% trans "Education & Training:" %}</h3>
         <hr>
         <section class="education">
             {% include 'pdf/education.html' %}
         </section>
-        <h3>{% trans "Languages & Digital skills:" %}</h3>
+        <h3>{% trans "Skills:" %}</h3>
         <hr>
         <section class="skills">
             {% include 'pdf/skills.html' %}
