@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ sender_name }} | Cover Letter</title>
+</head>
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        font-size: 11px;
+        line-height: 1.5;
+        margin: 0;
+        padding: 0;
+        background-color: #fff;
+        color: #222;
+    }
+
+    @page {
+        size: A4;
+        margin: 20mm 18mm;
+    }
+
+    .letter-container {
+        max-width: 800px;
+        margin: auto;
+    }
+
+    p {
+        margin: 0 0 12px 0;
+    }
+</style>
+<body>
+    <div class="letter-container">
+        {% for paragraph in paragraphs %}
+        <p>
+            {% for line in paragraph %}{{ line }}{% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+        </p>
+        {% endfor %}
+    </div>
+</body>
+</html>
