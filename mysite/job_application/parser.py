@@ -284,12 +284,12 @@ def process_json(response):
 
 SWISS_WORK_PERMIT_NOTE = {
     'en': (
-        "As a German citizen, I can work in Switzerland without visa sponsorship under the "
-        "EU/EFTA free movement of persons agreement."
+        "As a German citizen, I can work in Switzerland under the EU/EFTA free movement "
+        "of persons agreement."
     ),
     'de': (
         "Als deutscher Staatsbürger kann ich im Rahmen des Freizügigkeitsabkommens zwischen der "
-        "EU/EFTA und der Schweiz ohne Visa-Sponsoring in der Schweiz arbeiten."
+        "EU/EFTA und der Schweiz in der Schweiz arbeiten."
     ),
 }
 
@@ -506,7 +506,7 @@ def get_company_research(company_name, location='', api_key=None):
             {"role": "user", "content": f"Company to research: {query}"},
         ],
         temperature=0.3,
-        max_tokens=2500,
+        max_tokens=4000,
     )
 
     return sanitize_llm_text(response.choices[0].message.content) or 'Информация не найдена'
