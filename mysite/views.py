@@ -12,17 +12,9 @@ class IndexView(View):
         user = get_user_model().objects.first()
         experiences = user.experience_set.all().order_by('order')
         educations = user.education_set.all().order_by('order')
-        skills = user.skill_set.all()
-        projects = user.project_set.filter(is_visible=True).order_by('order')
-        open_source_projects = user.opensourceproject_set.all()
-        print(projects.query)  # Вывод SQL-запроса
-        print(projects)  # Вывод содержимого QuerySet
         return render(request, 'index.html', {'user': user,
                                               'experiences': experiences,
-                                              'educations': educations,
-                                              'skills': skills,
-                                              'projects': projects,
-                                              'open_source_projects': open_source_projects})
+                                              'educations': educations})
 
 
 class PageNotFoundView(View):
@@ -40,15 +32,11 @@ class ExportPDFView(View):
         experiences = user.experience_set.all().order_by('order')
         educations = user.education_set.all().order_by('order')
         skills = user.skill_set.all()
-        projects = user.project_set.all().order_by('order')
-        open_source_projects = user.opensourceproject_set.all()
         context = {
             'user': user,
             'experiences': experiences,
             'educations': educations,
             'skills': skills,
-            'projects': projects,
-            'open_source_projects': open_source_projects
         }
 
         # Render HTML content
@@ -70,12 +58,8 @@ class PDFview(LoginRequiredMixin, View):
         experiences = user.experience_set.all()
         educations = user.education_set.all()
         skills = user.skill_set.all()
-        projects = user.project_set.all()
-        open_source_projects = user.opensourceproject_set.all()
         context = {'user': user,
                    'experiences': experiences,
                    'educations': educations,
-                   'skills': skills,
-                   'projects': projects,
-                   'open_source_projects': open_source_projects}
+                   'skills': skills}
         return render(request, 'pdf/pdf_template.html', context)
