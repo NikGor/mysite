@@ -3,12 +3,12 @@ from .models import JobApplication
 
 
 class JobApplicationSerializer(serializers.ModelSerializer):
-    is_remote = serializers.BooleanField(default=False)
+    work_mode = serializers.ChoiceField(choices=JobApplication.WORK_MODE_CHOICES, default='office')
 
     class Meta:
         model = JobApplication
         fields = [
-            'company_name', 'job_title', 'url', 'location', 'is_remote',
+            'company_name', 'job_title', 'url', 'location', 'work_mode',
             'contact_person', 'key_skills', 'soft_skills', 'salary_range',
             'language', 'german_level'
         ]
