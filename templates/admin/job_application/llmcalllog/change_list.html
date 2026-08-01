@@ -1,0 +1,36 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+{{ block.super }}
+{% endblock %}
+
+{% block result_list %}
+<p style="font-size: 1.2em; font-weight: bold; margin: 0 0 10px;">
+    Total (current filter): {{ total_cost_display }}
+</p>
+{% if purpose_stats %}
+<table style="margin-bottom: 15px; border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th style="text-align:left; padding: 4px 12px 4px 0;">Purpose</th>
+            <th style="text-align:right; padding: 4px 12px;">Calls</th>
+            <th style="text-align:right; padding: 4px 12px;">Avg latency</th>
+            <th style="text-align:right; padding: 4px 12px;">Avg cost</th>
+            <th style="text-align:right; padding: 4px 12px;">Total cost</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for stat in purpose_stats %}
+        <tr>
+            <td style="padding: 2px 12px 2px 0;">{{ stat.purpose }}</td>
+            <td style="text-align:right; padding: 2px 12px;">{{ stat.count }}</td>
+            <td style="text-align:right; padding: 2px 12px;">{% if stat.avg_latency %}{{ stat.avg_latency }} ms{% else %}-{% endif %}</td>
+            <td style="text-align:right; padding: 2px 12px;">{% if stat.avg_cost %}${{ stat.avg_cost|floatformat:4 }}{% else %}-{% endif %}</td>
+            <td style="text-align:right; padding: 2px 12px;">{% if stat.total_cost %}${{ stat.total_cost|floatformat:4 }}{% else %}-{% endif %}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{{ block.super }}
+{% endblock %}
