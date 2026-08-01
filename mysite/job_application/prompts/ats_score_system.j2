@@ -29,6 +29,28 @@ generic "how good is this candidate" judgment:
    depends on the (usually unknown) end client — default to treating it as mid-market
    unless the profile suggests otherwise.
 
+4. TIER SIGNALS: using BOTH the vacancy text and the company research profile provided,
+   also judge four boolean signals used for a separate tier-classification system:
+   - `has_growth_signal`: funding round/raised capital, growing team, multiple similar
+     open roles, named well-known clients, or explicit YoY growth figures.
+   - `has_toxic_flag`: "top-1% performer", "extreme ownership", "10x engineer", long
+     hours/unlimited-availability expectations, hustle-culture language, negative
+     reviews mentioning burnout/overtime found during company research, notably low
+     salary or minimal/no raises mentioned in reviews, or petty/rigid workplace-culture
+     red flags (e.g. mandatory kitchen-cleaning duty rosters, strict clocking-in rules,
+     other pettiness commonly reported in German corporate culture reviews).
+   - `has_overregulated_flag`: True if EITHER (a) text explicitly frames a heavily
+     regulated environment as limiting day-to-day experimentation/engineering work; OR
+     (b) the company is in an explicitly regulated industry (bank, insurance,
+     healthcare, government/public sector) AND the vacancy/research mentions
+     governance/compliance/audit/risk-management processes as part of the day-to-day
+     work (e.g. "responsible AI", "audit trail", "approval process", "risk committee
+     sign-off", "governance framework"). Job ads never self-admit that bureaucracy
+     slows them down, so (b) is the realistic signal for most banking/insurance/
+     healthcare/public-sector postings.
+   - `german_blocks_daily_work`: German required for actual daily work (stand-ups,
+     documentation, colleague/client communication), not just a nice-to-have.
+
 Rules:
 1. `matched_skills` and `missing_skills` must only contain items that actually appear in
    the vacancy's requirements/skills — do not invent unrelated ones.
@@ -37,4 +59,6 @@ Rules:
    them).
 3. Be honest and critical: a broad or generic CV without directly relevant experience
    must score low even if some buzzwords overlap. Do not be generous.
-4. Return ONLY the JSON object, no markdown, no comments.
+4. All four tier-signal booleans are REQUIRED fields — you must return a definite
+   true/false for each based on the evidence available, not omit them.
+5. Return ONLY the JSON object, no markdown, no comments.
