@@ -13,7 +13,7 @@ import openai
 from bs4 import BeautifulSoup
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL = "openai/gpt-4.1"
+MODEL = "openai/gpt-5.6-luna"
 EXTRACTION_MODEL = "openai/gpt-5-mini"
 ATS_MODEL = "anthropic/claude-opus-4.8"
 ATS_MODEL_FALLBACK = "openai/gpt-5.2"
@@ -73,7 +73,14 @@ class VacancyExtraction(BaseModel):
     job_title: str = Field(description="Job title, in Russian")
     company_name: str = Field(description="Company name, unchanged (proper noun)")
     location: List[str] = Field(description="List of locations; empty if fully remote")
-    is_remote: bool = Field(description="Whether remote work is possible")
+    work_mode: Literal["remote", "hybrid", "office"] = Field(
+        description=(
+            "'remote' if the vacancy explicitly offers fully remote/home-office work with no required office "
+            "presence. 'hybrid' if it mentions a mix (e.g. '2 days in office', 'flexible/hybrid working', "
+            "partial remote). 'office' if it requires on-site presence, or doesn't mention remote/hybrid work "
+            "at all (default assumption for ordinary office-based roles)."
+        )
+    )
     is_agency: bool = Field(
         description=(
             "True if the entity posting this vacancy is a staffing/recruitment agency, IT consultancy, or "
@@ -111,6 +118,46 @@ class VacancyExtraction(BaseModel):
             "fully remote roles with no Swiss location signal, or roles located elsewhere."
         )
     )
+    has_growth_signal: bool = Field(
+        description=(
+            "True if the vacancy text signals company growth/stability: mentions of a funding round or "
+            "raised capital (e.g. '$X funding', 'Series A/B'), a growing team, hiring for multiple similar "
+            "roles, named well-known clients, or explicit YoY growth figures (e.g. 'N% growth'). "
+            "False if no such signal is present."
+        )
+    )
+    has_toxic_flag: bool = Field(
+        description=(
+            "True if the vacancy text signals a toxic/high-pressure culture, or other red-flag "
+            "workplace-culture signals: phrases like 'top-1% performer', 'extreme ownership', '10x engineer', "
+            "expectations of long hours/unlimited availability, similar hustle-culture language, notably low "
+            "salary explicitly stated for the role's scope, or petty/rigid workplace rules (e.g. mandatory "
+            "kitchen-cleaning duty rosters, strict clocking-in requirements). False if the tone is "
+            "ordinary/professional."
+        )
+    )
+    has_overregulated_flag: bool = Field(
+        description=(
+            "True if EITHER: (a) the vacancy text explicitly frames regulation as limiting day-to-day "
+            "engineering work, e.g. 'highly regulated industry limits experimentation', 'strict compliance "
+            "processes' as a stated constraint; OR (b) the company is in an explicitly regulated industry "
+            "(bank, insurance, healthcare, government/public sector) AND the vacancy itself mentions "
+            "governance/compliance/audit/risk-management processes as part of the day-to-day work (e.g. "
+            "'responsible AI', 'audit trail', 'approval process', 'risk committee sign-off', 'governance "
+            "framework'). Job ads never self-admit that bureaucracy slows them down, so criterion (b) is the "
+            "realistic signal for most banking/insurance/healthcare/public-sector postings. False only when "
+            "neither an explicit limiting statement nor this regulated-industry + governance-language "
+            "combination is present — being in a regulated industry with no governance/compliance language at "
+            "all is not enough on its own."
+        )
+    )
+    german_blocks_daily_work: bool = Field(
+        description=(
+            "True if German is described as required for actual day-to-day work (daily stand-ups, "
+            "documentation, or communication with colleagues/clients in German), not just a nice-to-have or "
+            "a formality. False if English is the working language, or German is only mentioned as a plus."
+        )
+    )
 
 
 class ATSScoreResult(BaseModel):
@@ -145,6 +192,46 @@ class ATSScoreResult(BaseModel):
     matched_skills: List[str] = Field(description="Vacancy requirements clearly matched by the candidate's CV, in Russian")
     missing_skills: List[str] = Field(description="Vacancy requirements missing from the candidate's CV, in Russian")
     summary: str = Field(description="2-3 sentence explanation of the overall fit, in Russian")
+    # Tier-scoring signals (see JobApplication.tier) - re-derived here with full context
+    # (vacancy text + company research), not just the vacancy text alone as at parse time.
+    has_growth_signal: bool = Field(
+        description=(
+            "True if the vacancy or company research signals company growth/stability: a funding round or "
+            "raised capital ('$X funding', 'Series A/B'), a growing team, hiring for multiple similar roles, "
+            "named well-known clients, or explicit YoY growth figures ('N% growth'). False if no such signal."
+        )
+    )
+    has_toxic_flag: bool = Field(
+        description=(
+            "True if the vacancy or company research signals a toxic/high-pressure culture, or other red-flag "
+            "workplace-culture signals: phrases like 'top-1% performer', 'extreme ownership', '10x engineer', "
+            "expectations of long hours/unlimited availability, similar hustle-culture language, negative "
+            "reviews mentioning burnout/overtime, notably low salary or minimal/no raises mentioned in "
+            "employee reviews, or petty/rigid workplace-culture red flags (e.g. mandatory kitchen-cleaning "
+            "duty rosters, strict clocking-in rules, other pettiness commonly reported in German corporate "
+            "culture reviews)."
+        )
+    )
+    has_overregulated_flag: bool = Field(
+        description=(
+            "True if EITHER: (a) the vacancy or company research explicitly frames regulation as limiting "
+            "day-to-day engineering work, e.g. 'highly regulated industry limits experimentation', 'strict "
+            "compliance processes' as a stated constraint; OR (b) the company is in an explicitly regulated "
+            "industry (bank, insurance, healthcare, government/public sector) AND the vacancy/research mentions "
+            "governance/compliance/audit/risk-management processes as part of the day-to-day work (e.g. "
+            "'responsible AI', 'audit trail', 'approval process', 'risk committee sign-off', 'governance "
+            "framework'). Job ads never self-admit that bureaucracy slows them down, so criterion (b) is the "
+            "realistic signal for most banking/insurance/healthcare/public-sector postings. False only when "
+            "neither an explicit limiting statement nor this regulated-industry + governance-language "
+            "combination is present."
+        )
+    )
+    german_blocks_daily_work: bool = Field(
+        description=(
+            "True if German is required for actual day-to-day work (daily stand-ups, documentation, or "
+            "communication with colleagues/clients in German), not just a nice-to-have or a formality."
+        )
+    )
 
 
 class CoverLetterParts(BaseModel):
@@ -167,6 +254,21 @@ class CompanyEmployees(BaseModel):
     )
 
 
+class CompanyOffices(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    addresses: List[str] = Field(
+        description=(
+            "List of up to 4 known office addresses for the company, most relevant to the vacancy "
+            "location first (e.g. the office nearest the vacancy's stated location, if known). Each address "
+            "must include street + house number, postal code, city and country when available, e.g. "
+            "'Bahnhofstrasse 1, 8001 Zurich, Switzerland'. If only a city/country is known for an office, "
+            "include just that (e.g. 'Zurich, Switzerland'). Return a single-item list if only one office is "
+            "known. Return an empty list if no verifiable office location can be found at all."
+        )
+    )
+
+
 def pydantic_response_format(model, name):
     schema = model.model_json_schema()
     schema.pop('title', None)
@@ -186,6 +288,69 @@ def get_client():
         api_key=os.getenv("OPENROUTER_API_KEY"),
         base_url=OPENROUTER_BASE_URL,
     )
+
+
+def chat_completion(client, purpose, job_application=None, retry_of=None, **kwargs):
+    """Wraps client.chat.completions.create() to log the full prompt/response, latency,
+    token usage and cost (in USD, as reported by OpenRouter) to LLMCallLog, so both LLM
+    spend and output quality can be traced per feature/job application."""
+    extra_body = kwargs.pop('extra_body', None) or {}
+    extra_body.setdefault('usage', {'include': True})
+
+    start = time.monotonic()
+    try:
+        response = client.chat.completions.create(extra_body=extra_body, **kwargs)
+    except Exception as e:
+        latency_ms = int((time.monotonic() - start) * 1000)
+        try:
+            from mysite.job_application.models import LLMCallLog
+            LLMCallLog.objects.create(
+                purpose=purpose,
+                model=kwargs.get('model', ''),
+                messages=kwargs.get('messages'),
+                temperature=kwargs.get('temperature'),
+                max_tokens=kwargs.get('max_tokens'),
+                response_format=kwargs.get('response_format'),
+                latency_ms=latency_ms,
+                error=str(e),
+                job_application=job_application,
+                retry_of=retry_of,
+            )
+        except Exception as log_error:
+            print(f"Failed to log failed LLM call for {purpose}: {log_error}")
+        raise
+    latency_ms = int((time.monotonic() - start) * 1000)
+
+    usage = getattr(response, 'usage', None)
+    response_text = None
+    if getattr(response, 'choices', None):
+        response_text = response.choices[0].message.content
+
+    try:
+        from mysite.job_application.models import LLMCallLog
+        usage_dict = {}
+        if usage is not None:
+            usage_dict = usage.model_dump() if hasattr(usage, 'model_dump') else dict(usage)
+        LLMCallLog.objects.create(
+            purpose=purpose,
+            model=kwargs.get('model', ''),
+            messages=kwargs.get('messages'),
+            response_text=response_text,
+            latency_ms=latency_ms,
+            temperature=kwargs.get('temperature'),
+            max_tokens=kwargs.get('max_tokens'),
+            response_format=kwargs.get('response_format'),
+            prompt_tokens=usage_dict.get('prompt_tokens'),
+            completion_tokens=usage_dict.get('completion_tokens'),
+            total_tokens=usage_dict.get('total_tokens'),
+            cost=usage_dict.get('cost'),
+            job_application=job_application,
+            retry_of=retry_of,
+        )
+    except Exception as e:
+        print(f"Failed to log LLM usage for {purpose}: {e}")
+
+    return response
 
 
 def get_html_content(url):
@@ -239,7 +404,8 @@ def detect_job_language(url):
 def get_openai_response(prompt_text, api_key=None, model_id=None):
     client = get_client()
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='extract_vacancy',
         model=EXTRACTION_MODEL,
         messages=[
             {"role": "system", "content": render_prompt('vacancy_extraction_system.j2')},
@@ -250,13 +416,14 @@ def get_openai_response(prompt_text, api_key=None, model_id=None):
         response_format=pydantic_response_format(VacancyExtraction, "vacancy_extraction"),
     )
 
-    return response.choices[0].message.content
+    return response.choices[0].message.content if response.choices else None
 
 
 def get_full_text_ru(prompt_text, api_key=None):
     client = get_client()
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='full_text_translation',
         model=MODEL,
         messages=[
             {"role": "system", "content": render_prompt('full_text_translation_system.j2')},
@@ -265,6 +432,9 @@ def get_full_text_ru(prompt_text, api_key=None):
         temperature=0.2,
         max_tokens=4096,
     )
+
+    if not response.choices:
+        return ''
 
     return sanitize_llm_text(response.choices[0].message.content)
 
@@ -294,7 +464,7 @@ SWISS_WORK_PERMIT_NOTE = {
 }
 
 
-def get_cv_intro(api_key, sample, language, skills, soft_skills, is_switzerland=False):
+def get_cv_intro(api_key, sample, language, skills, soft_skills, is_switzerland=False, job_application=None):
     client = get_client()
 
     skills_formatted = '\n'.join(skills)
@@ -315,7 +485,8 @@ def get_cv_intro(api_key, sample, language, skills, soft_skills, is_switzerland=
         soft_skills_formatted=soft_skills_formatted,
     )
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='cv_intro', job_application=job_application,
         model=MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
@@ -324,6 +495,9 @@ def get_cv_intro(api_key, sample, language, skills, soft_skills, is_switzerland=
         temperature=0.6,
         max_tokens=1024,
     )
+
+    if not response.choices:
+        return ''
 
     text = sanitize_llm_text(response.choices[0].message.content)
     if is_switzerland:
@@ -371,7 +545,7 @@ SIGNOFF = {'en': 'Best regards,', 'de': 'Mit freundlichen Grüßen,'}
 
 def get_cover_letter(api_key, job_title, company_name, sample, language, skills, soft_skills, contact_person,
                       sender_name='', cv_intro='', ats_context='', company_context='', is_agency=False,
-                      is_switzerland=False):
+                      is_switzerland=False, job_application=None):
     client = get_client()
 
     skills_formatted = '\n'.join(skills)
@@ -427,7 +601,8 @@ def get_cover_letter(api_key, job_title, company_name, sample, language, skills,
     for attempt in range(3):
         if attempt > 0:
             time.sleep(1.5 * attempt)
-        response = client.chat.completions.create(
+        response = chat_completion(
+            client, purpose='cover_letter', job_application=job_application,
             model=COVER_LETTER_MODEL,
             messages=messages,
             temperature=0.8,
@@ -443,7 +618,8 @@ def get_cover_letter(api_key, job_title, company_name, sample, language, skills,
             if parts.get('greeting') and parts.get('middle_paragraph') and parts.get('closing_paragraph'):
                 return assemble(parts)
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='cover_letter_fallback', job_application=job_application,
         model=MODEL,
         messages=messages,
         temperature=0.8,
@@ -459,47 +635,13 @@ def get_cover_letter(api_key, job_title, company_name, sample, language, skills,
         return ''
 
 
-def get_experience_description(original_description, job_title, company_name, language, key_skills, soft_skills):
-    client = get_client()
-    original_lines = original_description.count('\n') + 1
-    max_chars = len(original_description)
-
-    system_prompt = render_prompt(
-        'experience_description_system.j2',
-        max_chars=max_chars,
-        original_length=len(original_description),
-        original_lines=original_lines,
-        job_title=job_title,
-        company_name=company_name,
-        language=language,
-        language_name=LANGUAGE_NAMES.get(language, 'english'),
-    )
-    user_prompt = render_prompt(
-        'experience_description_user.j2',
-        original_description=original_description,
-        key_skills=key_skills,
-        soft_skills=soft_skills,
-    )
-
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.7,
-        max_tokens=1024,
-    )
-
-    return sanitize_llm_text(response.choices[0].message.content)
-
-
-def get_company_research(company_name, location='', api_key=None):
+def get_company_research(company_name, location='', api_key=None, job_application=None):
     client = get_client()
 
     query = f"{company_name}" + (f", {location}" if location else "")
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='company_research', job_application=job_application,
         model=RESEARCH_MODEL,
         messages=[
             {"role": "system", "content": render_prompt('company_research_system.j2')},
@@ -509,33 +651,72 @@ def get_company_research(company_name, location='', api_key=None):
         max_tokens=4000,
     )
 
+    if not response.choices:
+        return 'Информация не найдена'
+
     return sanitize_llm_text(response.choices[0].message.content) or 'Информация не найдена'
 
 
-def extract_company_employees(company_research_text):
+def get_company_reviews(company_name, location='', job_application=None):
+    """A single :online web search tends to spend its result budget on general company
+    facts and rarely surfaces Kununu/Glassdoor pages, so this is a dedicated call with a
+    query that explicitly targets review platforms (same rationale as splitting out
+    get_company_addresses/extract_company_employees)."""
     client = get_client()
 
-    response = client.chat.completions.create(
+    query = f"{company_name}" + (f", {location}" if location else "")
+
+    response = chat_completion(
+        client, purpose='company_reviews', job_application=job_application,
+        model=RESEARCH_MODEL,
+        extra_body={'plugins': [{'id': 'web', 'max_results': 8}]},
+        messages=[
+            {"role": "system", "content": render_prompt('company_reviews_system.j2')},
+            {"role": "user", "content": (
+                f"Company: {query}. Search for \"{query} kununu\" and \"{query} glassdoor reviews\"."
+            )},
+        ],
+        temperature=0.3,
+        max_tokens=2000,
+    )
+
+    if not response.choices:
+        return 'Информация не найдена'
+
+    return sanitize_llm_text(response.choices[0].message.content) or 'Информация не найдена'
+
+
+def extract_company_employees(company_research_text, job_application=None):
+    client = get_client()
+
+    response = chat_completion(
+        client, purpose='company_employees', job_application=job_application,
         model=EMPLOYEES_MODEL,
         messages=[
             {"role": "system", "content": render_prompt('company_employees_system.j2')},
             {"role": "user", "content": company_research_text},
         ],
         temperature=0,
-        max_tokens=600,
+        max_tokens=2000,
         response_format=pydantic_response_format(CompanyEmployees, "company_employees"),
     )
+
+    if not response.choices:
+        return ''
 
     result = process_json(response.choices[0].message.content)
     return result.get('employees', '') if 'error' not in result else ''
 
 
-def get_company_address(company_name, location='', api_key=None):
+def get_company_addresses(company_name, location='', api_key=None, job_application=None):
+    """Returns a list of known office addresses (most relevant to the vacancy location
+    first), or an empty list if none could be found."""
     client = get_client()
 
     query = f"{company_name}" + (f", {location}" if location else "")
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='company_address', job_application=job_application,
         model=ADDRESS_MODEL,
         messages=[
             {"role": "system", "content": render_prompt('company_address_system.j2')},
@@ -543,21 +724,33 @@ def get_company_address(company_name, location='', api_key=None):
         ],
         temperature=0.2,
         max_tokens=1500,
+        response_format=pydantic_response_format(CompanyOffices, "company_offices"),
     )
 
-    address = sanitize_llm_text(response.choices[0].message.content) or 'Адрес не найден'
-    address = address.splitlines()[0].strip()
-    # Strip markdown links/citations the model may add despite instructions, e.g. "... [source](url)"
-    address = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', address).strip(' \t*_')
-    return address
+    if not response.choices:
+        return []
+
+    result = process_json(response.choices[0].message.content)
+    if 'error' in result:
+        return []
+
+    addresses = []
+    for address in result.get('addresses', []):
+        address = sanitize_llm_text(address).splitlines()[0].strip()
+        # Strip markdown links/citations the model may add despite instructions
+        address = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', address).strip(' \t*_')
+        if address:
+            addresses.append(address)
+    return addresses
 
 
-def get_company_website(company_name, location='', api_key=None):
+def get_company_website(company_name, location='', api_key=None, job_application=None):
     client = get_client()
 
     query = f"{company_name}" + (f", {location}" if location else "")
 
-    response = client.chat.completions.create(
+    response = chat_completion(
+        client, purpose='company_website', job_application=job_application,
         model=ADDRESS_MODEL,
         messages=[
             {"role": "system", "content": render_prompt('company_website_system.j2')},
@@ -584,24 +777,32 @@ def get_company_website(company_name, location='', api_key=None):
 
 
 def geocode_address(address):
+    """Returns (lat, lon, city_country) - city_country is the geocoder's own resolved
+    "City, Country" (more reliable than parsing the LLM-written address string), or None
+    for city_country if the geocoder didn't return structured address details."""
     try:
         response = requests.get(
             "https://nominatim.openstreetmap.org/search",
-            params={"q": address, "format": "json", "limit": 1},
+            params={"q": address, "format": "json", "limit": 1, "addressdetails": 1, "accept-language": "en"},
             headers={"User-Agent": "MySite-JobApplication/1.0"},
             timeout=10,
         )
         response.raise_for_status()
         results = response.json()
         if results:
-            return float(results[0]["lat"]), float(results[0]["lon"])
+            result = results[0]
+            addr = result.get("address", {})
+            city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality")
+            country = addr.get("country")
+            city_country = ', '.join(part for part in (city, country) if part) or None
+            return float(result["lat"]), float(result["lon"]), city_country
     except (requests.RequestException, ValueError, KeyError, IndexError) as e:
         print(f"Error geocoding address '{address}': {e}")
 
     return None
 
 
-def get_ats_score(cv_summary, job_summary, company_profile='', api_key=None):
+def get_ats_score(cv_summary, job_summary, company_profile='', api_key=None, job_application=None):
     client = get_client()
 
     user_prompt = render_prompt(
@@ -618,7 +819,8 @@ def get_ats_score(cv_summary, job_summary, company_profile='', api_key=None):
     response_format = pydantic_response_format(ATSScoreResult, "ats_score")
 
     try:
-        response = client.chat.completions.create(
+        response = chat_completion(
+            client, purpose='ats_score', job_application=job_application,
             model=ATS_MODEL,
             messages=messages,
             temperature=0.2,
@@ -627,13 +829,17 @@ def get_ats_score(cv_summary, job_summary, company_profile='', api_key=None):
         )
     except openai.BadRequestError:
         # ATS_MODEL may not support structured outputs — fall back to a model that does
-        response = client.chat.completions.create(
+        response = chat_completion(
+            client, purpose='ats_score_fallback', job_application=job_application,
             model=ATS_MODEL_FALLBACK,
             messages=messages,
             temperature=0.2,
             max_tokens=1536,
             response_format=response_format,
         )
+
+    if not response.choices:
+        return {"error": "Empty response from the API"}
 
     return process_json(response.choices[0].message.content)
 
