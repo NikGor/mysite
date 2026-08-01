@@ -11,7 +11,7 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from mysite.job_application.models import JobApplication
+from mysite.job_application.models import JobApplication, LLMCallLog
 from mysite.job_application.parser import get_job_text, get_openai_response, process_json, get_full_text_ru, \
     get_company_website
 from mysite.job_application.serializers import JobApplicationSerializer
@@ -34,6 +34,7 @@ class ParseURLView(APIView):
         if not url:
             return Response({'error': 'No URL provided'}, status=status.HTTP_400_BAD_REQUEST)
 
+        parse_started_at = timezone.now()
         prompt_text = get_job_text(url)
         response = get_openai_response(prompt_text, api_key)
         result = process_json(response)
@@ -61,7 +62,7 @@ class ParseURLView(APIView):
             job_title=job_title,
             url=url,
             location=location,
-            is_remote=result.get('is_remote', False),
+            work_mode=result.get('work_mode', 'office'),
             is_agency=result.get('is_agency', False),
             contact_person=contact_person,
             date_added=timezone.now(),
@@ -79,9 +80,16 @@ class ParseURLView(APIView):
             company_website=company_website,
             application_instructions=result.get('application_instructions', ''),
             is_switzerland=result.get('is_switzerland', False),
+            has_growth_signal=result.get('has_growth_signal', False),
+            has_toxic_flag=result.get('has_toxic_flag', False),
+            has_overregulated_flag=result.get('has_overregulated_flag', False),
+            german_blocks_daily_work=result.get('german_blocks_daily_work', False),
             # Добавьте другие поля при необходимости
         )
         job_application.save()
+        LLMCallLog.objects.filter(
+            job_application__isnull=True, created_at__gte=parse_started_at,
+        ).update(job_application=job_application)
 
         # Добавляем статус 'success' к result
         result['status'] = 'success'
@@ -108,6 +116,7 @@ class ParseTextView(View):
             return JsonResponse({'error': 'No text provided'}, status=400)
 
         # Используем тот же метод parse_url
+        parse_started_at = timezone.now()
         response = get_openai_response(prompt_text, api_key)
         result = process_json(response)
 
@@ -133,7 +142,7 @@ class ParseTextView(View):
             company_name=company_name,
             job_title=job_title,
             location=location,
-            is_remote=result.get('is_remote', False),
+            work_mode=result.get('work_mode', 'office'),
             is_agency=result.get('is_agency', False),
             contact_person=contact_person,
             date_added=timezone.now(),
@@ -151,9 +160,16 @@ class ParseTextView(View):
             company_website=company_website,
             application_instructions=result.get('application_instructions', ''),
             is_switzerland=result.get('is_switzerland', False),
+            has_growth_signal=result.get('has_growth_signal', False),
+            has_toxic_flag=result.get('has_toxic_flag', False),
+            has_overregulated_flag=result.get('has_overregulated_flag', False),
+            german_blocks_daily_work=result.get('german_blocks_daily_work', False),
             # Добавьте другие поля при необходимости
         )
         job_application.save()
+        LLMCallLog.objects.filter(
+            job_application__isnull=True, created_at__gte=parse_started_at,
+        ).update(job_application=job_application)
 
         result['status'] = 'success'
         return JsonResponse(result, status=201)
