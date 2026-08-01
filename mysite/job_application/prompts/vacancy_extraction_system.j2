@@ -5,7 +5,7 @@ the job vacancy text and generate a summary JSON with the following data from th
     "job_title": "job title",
     "company_name": "company name",
     "location": ["location1", "location2"],
-    "is_remote": "True/False",
+    "work_mode": "remote/hybrid/office",
     "is_agency": "True/False",
     "contact_person": "contact person",
     "skills": ["list of technical skills mentioned in the vacancy"],
@@ -19,14 +19,22 @@ the job vacancy text and generate a summary JSON with the following data from th
     "minuses": ["list of visible minuses or less appealing aspects mentioned or implied in the vacancy"],
     "info": "general info about the company",
     "application_instructions": "special instructions on how to apply, if any",
-    "is_switzerland": "True/False"
+    "is_switzerland": "True/False",
+    "has_growth_signal": "True/False",
+    "has_toxic_flag": "True/False",
+    "has_overregulated_flag": "True/False",
+    "german_blocks_daily_work": "True/False"
 }
 
 - `job_title`: self-explanatory
 - `company_name`: self-explanatory
 - `location`: If multiple locations are specified, return them as a list. If it's fully
   remote, leave the location empty.
-- `is_remote`: mention whether remote work is possible
+- `work_mode`: "remote" if the vacancy explicitly offers fully remote/home-office work
+  with no required office presence; "hybrid" if it mentions a mix (e.g. "2 days in
+  office", "flexible/hybrid working", partial remote); "office" if it requires on-site
+  presence, or doesn't mention remote/hybrid work at all (default assumption for
+  ordinary office-based roles).
 - `is_agency`: True ONLY if the posting makes clear that the candidate's actual
   day-to-day employer/workplace would be a DIFFERENT, specific company than the one
   posting the ad — i.e. a staffing/recruitment agency, headhunter, or job platform acting
@@ -68,6 +76,30 @@ the job vacancy text and generate a summary JSON with the following data from th
   Swiss city/canton name (Zurich, Winterthur, Bern, Basel, Geneva, Lausanne, Zug, Lucerne,
   Aargau, St. Gallen, etc.), CHF salary figures, or an explicit country mention, even if
   the word "Switzerland" itself never appears.
+- `has_growth_signal`: True if the text signals company growth/stability — a funding
+  round or raised capital ("$X funding", "Series A/B"), a growing team, hiring for
+  multiple similar roles, named well-known clients, or explicit YoY growth figures
+  ("N% growth"). False if no such signal is present.
+- `has_toxic_flag`: True if the text signals a toxic/high-pressure culture, or other
+  red-flag workplace-culture signals — phrases like "top-1% performer", "extreme
+  ownership", "10x engineer", expectations of long hours/unlimited availability, similar
+  hustle-culture language, notably low salary explicitly stated for the role's scope, or
+  petty/rigid workplace rules (e.g. mandatory kitchen-cleaning duty rosters, strict
+  clocking-in requirements). False if the tone is ordinary/professional.
+- `has_overregulated_flag`: True if EITHER (a) the text explicitly frames regulation as
+  limiting day-to-day engineering work — phrases like "highly regulated industry limits
+  experimentation", "strict compliance processes" as a stated constraint; OR (b) the
+  company is in an explicitly regulated industry (bank, insurance, healthcare,
+  government/public sector) AND the vacancy itself mentions governance/compliance/audit/
+  risk-management processes as part of the day-to-day work (e.g. "responsible AI",
+  "audit trail", "approval process", "risk committee sign-off", "governance framework").
+  Job ads never self-admit that bureaucracy slows them down, so (b) is the realistic
+  signal for most banking/insurance/healthcare/public-sector postings. False only when
+  neither (a) nor this regulated-industry + governance-language combination is present.
+- `german_blocks_daily_work`: True if German is described as required for actual
+  day-to-day work (daily stand-ups, documentation, or communication with
+  colleagues/clients in German), not just a nice-to-have or a formality. False if English
+  is the working language, or German is only mentioned as a plus.
 
 IMPORTANT — output language: write the VALUES of `job_title`, `required_experience`,
 `salary_range`, `vacation_days`, `other_benefits`, `minuses`, `info`,
