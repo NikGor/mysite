@@ -11,9 +11,10 @@ from django.conf import settings
 from django.db.models.fields import CharField, TextField
 from weasyprint import HTML
 from django.contrib.auth import get_user_model
+from mysite.job_application.parser import chat_completion
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL = "openai/gpt-4.1"
+MODEL = "openai/gpt-5.6-luna"
 
 
 def get_client():
@@ -38,7 +39,8 @@ def translate_model(modeladmin, request, queryset):
                         if lang_code == settings.LANGUAGE_CODE:
                             continue
 
-                        response = client.chat.completions.create(
+                        response = chat_completion(
+                            client, purpose='translate_model',
                             model=MODEL,
                             messages=[
                                 {
