@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.pytest_cache
+.mypy_cache
+__pycache__
+*.pyc
+# Secrets and DB are provided at runtime (env_file / volume), not baked in
+.env
+db.sqlite3
+mysite/db.sqlite3
+staticfiles/
+dumps/

@@ -31,7 +31,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 ALLOWED_HOSTS = ['nikogordienko.up.railway.app',
                  '127.0.0.1',
-                 'mysite-hav4.onrender.com']
+                 'localhost',
+                 'mysite-hav4.onrender.com',
+                 # Home LAN (Raspberry Pi / archie) deployment
+                 'mysite.local',
+                 'archie.local',
+                 '192.168.0.234']
 
 AUTH_USER_MODEL = 'user.User'
 
@@ -94,7 +99,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "mysite.wsgi.application"
 
-CSRF_TRUSTED_ORIGINS = ['https://nikogordienko.up.railway.app']
+CSRF_TRUSTED_ORIGINS = ['https://nikogordienko.up.railway.app',
+                        # Home LAN (Raspberry Pi / archie) deployment on port 8080
+                        'http://mysite.local:8080',
+                        'http://archie.local:8080',
+                        'http://192.168.0.234:8080']
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases

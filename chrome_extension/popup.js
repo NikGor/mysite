@@ -1,3 +1,10 @@
+// Backend base URL. Points at the always-on Raspberry Pi (archie) on the LAN.
+// All network calls happen here in the popup (an extension page) rather than in
+// the content script, so http:// requests to the Pi aren't blocked as mixed
+// content on https:// job pages. host_permissions in manifest.json cover this.
+// Fallbacks if mDNS (.local) doesn't resolve on a device: http://192.168.0.234:8080
+const API_BASE = 'http://mysite.local:8080';
+
 function setBusy(button, spinner, busy) {
   button.disabled = busy;
   spinner.style.display = busy ? 'inline-block' : 'none';
@@ -17,6 +24,27 @@ function showResult(data) {
   }
 }
 
+// Best-effort overlay message to the content script; ignore pages where no
+// content script is injected (chrome://, the web store, etc.).
+function overlayMessage(tabId, payload) {
+  try {
+    chrome.tabs.sendMessage(tabId, payload, function() {
+      void chrome.runtime.lastError; // swallow "no receiving end" errors
+    });
+  } catch (e) { /* no-op */ }
+}
+
+function notifyOverlayResult(tabId, data) {
+  if (data.status === 'success') {
+    overlayMessage(tabId, {
+      message: 'vp_status', kind: 'success',
+      text: `Saved: ${data.job_title || 'vacancy'} @ ${data.company_name || ''}`,
+    });
+  } else {
+    overlayMessage(tabId, {message: 'vp_status', kind: 'error', text: data.error || 'Parsing failed'});
+  }
+}
+
 var parseBtn = document.getElementById('parse-btn');
 var parseSpinner = document.getElementById('parse-spinner');
 var textBtn = document.getElementById('text-parse-btn');
@@ -27,18 +55,26 @@ parseBtn.addEventListener('click', function() {
 
   chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
     var activeTab = tabs[0];
-    chrome.tabs.sendMessage(activeTab.id, {"message": "parse_url"}, function(response) {
-      setBusy(parseBtn, parseSpinner, false);
-      if (chrome.runtime.lastError) {
-        showStatus('error', 'Could not reach the page', chrome.runtime.lastError.message);
-        return;
-      }
-      if (response && response.error) {
-        showStatus('error', 'Parsing failed', response.error);
-      } else if (response && response.data) {
-        showResult(response.data);
-      }
-    });
+    var pageUrl = activeTab.url;
+    overlayMessage(activeTab.id, {message: 'vp_show', text: 'Parsing this page…'});
+
+    fetch(`${API_BASE}/api/parse_url/?url=${encodeURIComponent(pageUrl)}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        setBusy(parseBtn, parseSpinner, false);
+        showResult(data);
+        notifyOverlayResult(activeTab.id, data);
+      })
+      .catch(error => {
+        setBusy(parseBtn, parseSpinner, false);
+        showStatus('error', 'Parsing failed', error.message);
+        overlayMessage(activeTab.id, {message: 'vp_status', kind: 'error', text: error.message});
+      });
   });
 });
 
@@ -58,9 +94,9 @@ textBtn.addEventListener('click', function() {
         return;
       }
 
-      chrome.tabs.sendMessage(activeTab.id, {message: 'vp_show', text: 'Parsing selected text…'});
+      overlayMessage(activeTab.id, {message: 'vp_show', text: 'Parsing selected text…'});
 
-      fetch(`http://127.0.0.1:8000/api/parse_text/`, {
+      fetch(`${API_BASE}/api/parse_text/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,21 +112,12 @@ textBtn.addEventListener('click', function() {
       .then(data => {
         setBusy(textBtn, textSpinner, false);
         showResult(data);
-        if (data.status === 'success') {
-          chrome.tabs.sendMessage(activeTab.id, {
-            message: 'vp_status', kind: 'success',
-            text: `Saved: ${data.job_title || 'vacancy'} @ ${data.company_name || ''}`,
-          });
-        } else {
-          chrome.tabs.sendMessage(activeTab.id, {
-            message: 'vp_status', kind: 'error', text: data.error || 'Parsing failed',
-          });
-        }
+        notifyOverlayResult(activeTab.id, data);
       })
       .catch(error => {
         setBusy(textBtn, textSpinner, false);
         showStatus('error', 'Parsing failed', error.message);
-        chrome.tabs.sendMessage(activeTab.id, {message: 'vp_status', kind: 'error', text: error.message});
+        overlayMessage(activeTab.id, {message: 'vp_status', kind: 'error', text: error.message});
       });
     });
   });

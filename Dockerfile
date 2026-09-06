@@ -9,8 +9,16 @@ ADD . /app
 
 # Install system dependencies
 RUN apt-get update \
-    # Install wkhtmltopdf
-    && apt-get install -y wkhtmltopdf \
+    # WeasyPrint runtime deps (Pango/Cairo/GDK-Pixbuf) for PDF export
+    && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 \
+        libpangocairo-1.0-0 \
+        libpangoft2-1.0-0 \
+        libcairo2 \
+        libgdk-pixbuf-2.0-0 \
+        libffi-dev \
+        shared-mime-info \
+        fonts-dejavu \
     # Clean up the apt cache to reduce image size
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -70,34 +70,10 @@ function vpHideOverlay(delay) {
   }, delay || 0);
 }
 
+// This content script is now purely the on-page overlay UI. All network calls
+// to the backend happen in popup.js (extension context) to avoid mixed-content
+// blocking of http:// requests on https:// pages.
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  if (request.message === 'parse_url') {
-    vpShowOverlay('Parsing this page…');
-    const pageUrl = window.location.href;
-    const apiUrl = `http://127.0.0.1:8000/api/parse_url/?url=${encodeURIComponent(pageUrl)}`;
-
-    fetch(apiUrl)
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === 'success') {
-          vpSetOverlayStatus('success', `Saved: ${data.job_title || 'vacancy'} @ ${data.company_name || ''}`);
-          vpHideOverlay(3000);
-        } else {
-          vpSetOverlayStatus('error', data.error || 'Parsing failed');
-          vpHideOverlay(5000);
-        }
-        sendResponse({ data: data });
-      })
-      .catch(error => {
-        console.error('Ошибка:', error);
-        vpSetOverlayStatus('error', error.message);
-        vpHideOverlay(5000);
-        sendResponse({ error: error.message });
-      });
-
-    return true; // Для асинхронного ответа
-  }
-
   if (request.message === 'vp_show') {
     vpShowOverlay(request.text || 'Working…');
     sendResponse({ ok: true });

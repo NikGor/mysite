@@ -8,7 +8,10 @@
     "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "http://mysite.local:8080/*",
+    "http://archie.local:8080/*",
+    "http://192.168.0.234:8080/*"
   ],
   "action": {
     "default_popup": "popup.html",

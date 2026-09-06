@@ -1,0 +1,13 @@
+services:
+  mysite:
+    build: .
+    container_name: mysite
+    restart: unless-stopped
+    ports:
+      # host 8080 -> container 8000 (runserver). 8080 is free on the Pi.
+      - "8080:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persist the SQLite DB on the host so admin edits survive rebuilds.
+      - ./db.sqlite3:/app/db.sqlite3
