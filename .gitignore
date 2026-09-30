@@ -23,4 +23,6 @@ content_dump.json
 staticfiles/
 samples/
 dumps/
+client_secret_*.json
+token_gmail.json
 ```

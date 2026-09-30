@@ -9,5 +9,6 @@ __pycache__
 .env
 db.sqlite3
 mysite/db.sqlite3
+token_gmail.json
 staticfiles/
 dumps/
