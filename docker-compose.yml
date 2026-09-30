@@ -11,3 +11,6 @@ services:
     volumes:
       # Persist the SQLite DB on the host so admin edits survive rebuilds.
       - ./db.sqlite3:/app/db.sqlite3
+      # Gmail OAuth token: refreshed access tokens get written back here at
+      # runtime (import_gmail_vacancies), must survive rebuilds like the DB.
+      - ./token_gmail.json:/app/token_gmail.json
