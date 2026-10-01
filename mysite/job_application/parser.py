@@ -780,6 +780,11 @@ def geocode_address(address):
     """Returns (lat, lon, city_country) - city_country is the geocoder's own resolved
     "City, Country" (more reliable than parsing the LLM-written address string), or None
     for city_country if the geocoder didn't return structured address details."""
+    # Nominatim's usage policy caps clients at 1 request/second - callers (e.g.
+    # research_company looping over several offices per company) can otherwise burst
+    # requests fast enough to get the source IP rate-limited/banned across OSM's whole
+    # infrastructure, including the tile server used for the admin's map preview.
+    time.sleep(1)
     try:
         response = requests.get(
             "https://nominatim.openstreetmap.org/search",

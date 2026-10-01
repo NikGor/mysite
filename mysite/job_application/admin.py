@@ -647,8 +647,14 @@ class JobApplicationAdmin(admin.ModelAdmin):
             '(function() {'
             f'  var points = {to_js(points)}; var popups = {to_js(popups)};'
             f'  var map = L.map({to_js(map_id)}).setView({to_js(center)}, 13);'
-            '  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {'
-            '    attribution: \'&copy; OpenStreetMap contributors\''
+            # OpenStreetMap's own tile.openstreetmap.org server explicitly forbids
+            # production/automated use (osm.wiki/Tile_usage_policy) and will 403-ban the
+            # source IP - CARTO's free basemaps (no API key, generous usage terms) are
+            # the standard drop-in replacement for a low-volume, internal-admin map embed.
+            '  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {'
+            '    subdomains: "abcd", maxZoom: 20,'
+            '    attribution: \'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
+            'contributors &copy; <a href="https://carto.com/attributions">CARTO</a>\''
             '  }).addTo(map);'
             '  points.forEach(function(p, i) { L.marker(p).addTo(map).bindPopup(popups[i] || ""); });'
             '  if (points.length > 1) { map.fitBounds(L.latLngBounds(points), {padding: [30, 30]}); }'
