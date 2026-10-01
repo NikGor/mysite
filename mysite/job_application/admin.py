@@ -648,13 +648,17 @@ class JobApplicationAdmin(admin.ModelAdmin):
             f'  var points = {to_js(points)}; var popups = {to_js(popups)};'
             f'  var map = L.map({to_js(map_id)}).setView({to_js(center)}, 13);'
             # OpenStreetMap's own tile.openstreetmap.org server explicitly forbids
-            # production/automated use (osm.wiki/Tile_usage_policy) and will 403-ban the
-            # source IP - CARTO's free basemaps (no API key, generous usage terms) are
-            # the standard drop-in replacement for a low-volume, internal-admin map embed.
-            '  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {'
-            '    subdomains: "abcd", maxZoom: 20,'
-            '    attribution: \'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-            'contributors &copy; <a href="https://carto.com/attributions">CARTO</a>\''
+            # production/automated use (osm.wiki/Tile_usage_policy) and 403-banned the
+            # source IP. CARTO's basemaps now require an API key too (checked live -
+            # returns a 256x256 "API KEY REQUIRED" placeholder instead of a real tile,
+            # with a 200 status, so this is easy to miss without actually looking at the
+            # image). Esri's public World Street Map tiles are the key-free option that
+            # still works - note the {z}/{y}/{x} path order, reversed from Leaflet's
+            # usual {z}/{x}/{y}, and a single server so no {s} subdomain placeholder.
+            '  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/'
+            'World_Street_Map/MapServer/tile/{z}/{y}/{x}", {'
+            '    maxZoom: 19,'
+            '    attribution: \'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS\''
             '  }).addTo(map);'
             '  points.forEach(function(p, i) { L.marker(p).addTo(map).bindPopup(popups[i] || ""); });'
             '  if (points.length > 1) { map.fitBounds(L.latLngBounds(points), {padding: [30, 30]}); }'
