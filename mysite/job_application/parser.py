@@ -23,8 +23,12 @@ RELEVANCE_MODEL = "typesafe/jev-1.14"
 MODEL = "openai/gpt-6-luna"
 MODEL_FALLBACK = "openai/gpt-5.6-luna"
 EXTRACTION_MODEL = MODEL
-ATS_MODEL = MODEL
-ATS_MODEL_FALLBACK = MODEL_FALLBACK
+# ATS scoring is the one reasoning-heavy judgment, and tiers compare scores across
+# months - so it needs a calibrated, critical model. Side by side on the same vacancies
+# (2026-10-28) gpt-6-luna and gpt-6.1-terra scored 2-3 points above the Opus 4.8
+# baseline, Opus 5.5 stayed within 1 point (and listed the most hard-filter risks).
+ATS_MODEL = "anthropic/claude-opus-5.5"
+ATS_MODEL_FALLBACK = "openai/gpt-6-sol"
 # Cover letters stay on Sonnet: the one place where writing style matters more than price.
 COVER_LETTER_MODEL = "anthropic/claude-sonnet-5"
 # ':online' = OpenRouter web-search plugin on top of the model.
@@ -60,7 +64,8 @@ LLM_PROFILES = {
     'company_reviews': LLMProfile(RESEARCH_MODEL, temperature=0.3, max_tokens=4000),
     'company_facts': LLMProfile(ADDRESS_MODEL, temperature=0.2, max_tokens=1500),
     'company_website': LLMProfile(ADDRESS_MODEL, temperature=0.2, max_tokens=500),
-    'ats_score': LLMProfile(ATS_MODEL, temperature=0.2, max_tokens=1536, fallbacks=(ATS_MODEL_FALLBACK,)),
+    # Reasoning tokens of the fallback count against max_tokens - leave headroom.
+    'ats_score': LLMProfile(ATS_MODEL, temperature=0.2, max_tokens=4000, fallbacks=(ATS_MODEL_FALLBACK,)),
 }
 
 # Collects LLMCallLog ids created inside track_llm_calls(), so a pipeline can attach
