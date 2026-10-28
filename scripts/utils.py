@@ -11,10 +11,9 @@ from django.conf import settings
 from django.db.models.fields import CharField, TextField
 from weasyprint import HTML
 from django.contrib.auth import get_user_model
-from mysite.job_application.parser import chat_completion
+from mysite.job_application.parser import MODEL, chat_completion
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL = "openai/gpt-5.6-luna"
 
 
 def get_client():

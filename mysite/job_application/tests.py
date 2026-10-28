@@ -1,4 +1,3 @@
-import pytest
 from dotenv import load_dotenv
 
 from mysite.job_application.parser import (

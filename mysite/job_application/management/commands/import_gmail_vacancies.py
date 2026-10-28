@@ -1,15 +1,18 @@
 """
 Pull LinkedIn job-alert emails from Gmail, extract vacancy links, and for each
-new one: parse the real vacancy text (same extraction the manual "Parse URL"
-admin flow uses), create a JobApplication, and run company research + ATS
-scoring - unless it's a still-unverified agency listing (matches the
-research_company admin action's own skip rule) or --skip-scoring is passed.
+new one: check the raw page text is at least broadly relevant to the candidate's
+CV (TypeSafe Jev, --relevance-threshold; clearly off-field vacancies are skipped
+before any extraction spend and never saved), extract it (same services.ingest_vacancy
+the "Parse URL" API uses), and run company research + ATS scoring - unless it's a
+still-unverified agency listing (matches the research_company admin action's own
+skip rule) or --skip-scoring is passed. Stops early once the run's LLM spend
+reaches --max-cost-usd.
 
 Requires a one-time OAuth setup first: poetry run python scripts/gmail_oauth_setup.py
 
 Usage:
     poetry run python manage.py import_gmail_vacancies [--days 7] [--limit 20]
-        [--dry-run] [--skip-scoring]
+        [--dry-run] [--skip-scoring] [--relevance-threshold 0.25] [--max-cost-usd 10]
 """
 import os
 import re
@@ -17,15 +20,25 @@ import time
 import traceback
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 import email.utils as email_utils
 
-from mysite.job_application.admin import research_company
-from mysite.job_application.models import JobApplication, LLMCallLog
-from mysite.job_application.parser import (
-    get_company_website, get_full_text_ru, get_job_text, get_openai_response, process_json,
-)
+from mysite.job_application.admin import build_cv_summary
+from mysite.job_application.models import JobApplication
+from mysite.job_application.parser import get_job_text
+from mysite.job_application.services import ingest_vacancy, llm_cost_since, research_job_application
+
+# Below this probability (Jev's "relevant" judgment, 0-1) a parsed vacancy is
+# dropped instead of being saved - deliberately low, so only clearly-off-field
+# or wildly-mismatched-seniority alerts get filtered, not just imperfect fits.
+RELEVANCE_THRESHOLD = 0.25
+
+# Hard stop for one run's LLM spend (all purposes, USD as reported by OpenRouter).
+# A fully researched + scored vacancy costs ~$0.15, so the default covers --limit 40
+# with headroom but stops a runaway (e.g. a retry storm) well before it gets expensive.
+MAX_COST_USD = 10.0
 
 TOKEN_PATH = os.path.join(settings.BASE_DIR, 'token_gmail.json')
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -35,17 +48,6 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 SENDERS = ['jobalerts-noreply@linkedin.com', 'jobs-noreply@linkedin.com', 'messages-noreply@linkedin.com']
 
 JOB_ID_RE = re.compile(r'linkedin\.com/(?:comm/)?jobs/view/(\d+)')
-
-
-class DummyModelAdmin:
-    """Stand-in for the admin ModelAdmin instance research_company() expects -
-    only message_user() is actually called, to report skipped agency listings."""
-
-    def __init__(self, stdout):
-        self.stdout = stdout
-
-    def message_user(self, request, msg, level=None):
-        self.stdout.write(f'    [info] {msg}')
 
 
 def get_gmail_service():
@@ -112,61 +114,25 @@ def existing_job_ids():
     return ids
 
 
-def parse_and_create_vacancy(url, email_dt, stdout):
-    """Mirrors ParseURLView's extraction, but returns the created JobApplication
-    instead of an HTTP response, and doesn't generate cover letter / cv intro
-    (same deliberate deferral ParseURLView itself documents)."""
-    started_at = timezone.now()
+def parse_and_create_vacancy(url, email_dt, cv_summary, relevance_threshold, stdout):
+    """Returns (JobApplication or None, skip reason). Same ingest as ParseURLView, plus
+    the relevance gate and the email's own date as date_added."""
     prompt_text = get_job_text(url)
     if not prompt_text or len(prompt_text) < 200:
         return None, 'empty or unreachable page'
 
     is_closed = 'No longer accepting applications' in prompt_text
-
-    raw = get_openai_response(prompt_text)
-    result = process_json(raw)
-    if 'error' in result:
-        return None, f'extraction error: {result}'
-
-    company_name = result.get('company_name', '')
-    location = ', '.join(result.get('location', []) or [])
-    full_text_ru = get_full_text_ru(prompt_text)
-    company_website = get_company_website(company_name, location)
-
-    job_application = JobApplication(
-        company_name=company_name,
-        job_title=result.get('job_title', ''),
-        url=url,
-        location=location,
-        work_mode=result.get('work_mode', 'office'),
-        is_agency=result.get('is_agency', False),
-        contact_person=result.get('contact_person', ''),
-        key_skills=', '.join(result.get('skills', []) or []),
-        soft_skills=', '.join(result.get('soft_skills', []) or []),
-        required_experience=result.get('required_experience', ''),
-        salary_range=result.get('salary_range', ''),
-        vacation_days=result.get('vacation_days', ''),
-        other_benefits='\n'.join(f"- {b}" for b in (result.get('other_benefits', []) or [])),
-        minuses='\n'.join(f"- {m}" for m in (result.get('minuses', []) or [])),
-        language=result.get('language', ''),
-        german_level=result.get('german', ''),
-        info=f"Источник: Gmail import, письмо от {email_dt:%Y-%m-%d}",
-        full_text_ru=full_text_ru,
-        company_website=company_website,
-        application_instructions=result.get('application_instructions', ''),
-        is_switzerland=result.get('is_switzerland', False),
-        has_growth_signal=result.get('has_growth_signal', False),
-        has_toxic_flag=result.get('has_toxic_flag', False),
-        has_overregulated_flag=result.get('has_overregulated_flag', False),
-        german_blocks_daily_work=result.get('german_blocks_daily_work', False),
+    result = ingest_vacancy(
+        prompt_text, url=url, date_added=email_dt,
         status='closed' if is_closed else 'draft',
+        info=f"Источник: Gmail import, письмо от {email_dt:%Y-%m-%d}",
+        cv_summary=cv_summary, relevance_threshold=relevance_threshold,
     )
-    job_application.save()
-    JobApplication.objects.filter(pk=job_application.pk).update(date_added=email_dt)
-    LLMCallLog.objects.filter(job_application__isnull=True, created_at__gte=started_at).update(
-        job_application=job_application,
-    )
-    return job_application, None
+    if result.relevance is not None:
+        stdout.write(f'    relevance (jev)={result.relevance:.2f}')
+    if result.skip_reason:
+        return None, result.skip_reason
+    return result.job_application, None
 
 
 class Command(BaseCommand):
@@ -186,12 +152,25 @@ class Command(BaseCommand):
             '--skip-scoring', action='store_true',
             help='Create vacancies with real parsed text but skip company research + ATS scoring.',
         )
+        parser.add_argument(
+            '--relevance-threshold', type=float, default=RELEVANCE_THRESHOLD,
+            help=(
+                f'Jev "relevant" probability (0-1) below which a vacancy is dropped instead of '
+                f'saved (default {RELEVANCE_THRESHOLD}).'
+            ),
+        )
+        parser.add_argument(
+            '--max-cost-usd', type=float, default=MAX_COST_USD,
+            help=f'Stop processing new vacancies once this run has spent this much on LLM calls (default {MAX_COST_USD}).',
+        )
 
     def handle(self, *args, **options):
         days = options['days']
         limit = options['limit']
         dry_run = options['dry_run']
         skip_scoring = options['skip_scoring']
+        relevance_threshold = options['relevance_threshold']
+        max_cost_usd = options['max_cost_usd']
 
         service = get_gmail_service()
         sender_clause = ' OR '.join(f'from:{s}' for s in SENDERS)
@@ -235,18 +214,29 @@ class Command(BaseCommand):
         if len(new_jobs) > limit:
             self.stdout.write(f'Processing {limit} of {len(new_jobs)} (raise --limit to process more).')
 
-        dummy_admin = DummyModelAdmin(self.stdout)
+        run_started_at = timezone.now()
+        cv_summary = build_cv_summary(get_user_model().objects.first())
 
-        created, scored, failed = 0, 0, []
+        created, scored, skipped_irrelevant, failed = 0, 0, 0, []
         for n, (jid, email_dt) in enumerate(targets, 1):
+            spent = llm_cost_since(run_started_at)
+            if spent >= max_cost_usd:
+                self.stdout.write(
+                    f'BUDGET: spent ${spent:.2f} >= --max-cost-usd {max_cost_usd}, '
+                    f'stopping with {len(targets) - n + 1} vacancies left for the next run.'
+                )
+                break
             url = f'https://www.linkedin.com/jobs/view/{jid}/'
             self.stdout.write(f'--- [{n}/{len(targets)}] {jid} ---')
             t0 = time.time()
             try:
-                job, err = parse_and_create_vacancy(url, email_dt, self.stdout)
+                job, err = parse_and_create_vacancy(url, email_dt, cv_summary, relevance_threshold, self.stdout)
                 if err:
                     self.stdout.write(f'    SKIP: {err}')
-                    failed.append(jid)
+                    if err.startswith('not relevant'):
+                        skipped_irrelevant += 1
+                    else:
+                        failed.append(jid)
                     continue
                 created += 1
                 self.stdout.write(
@@ -256,14 +246,17 @@ class Command(BaseCommand):
 
                 if skip_scoring or job.status != 'draft':
                     continue
+                if job.is_agency_unverified:
+                    self.stdout.write('    [info] agency listing, end client unverified - research skipped')
+                    continue
 
                 t1 = time.time()
-                research_company(dummy_admin, None, JobApplication.objects.filter(pk=job.pk))
-                job.refresh_from_db()
+                path = research_job_application(job, cv_summary)
                 if job.ats_score is not None:
                     scored += 1
                     self.stdout.write(
-                        f'    scored: ats={job.ats_score} ({job.ats_verdict}) ({time.time() - t1:.1f}s)'
+                        f'    scored: ats={job.ats_score} ({job.ats_verdict}), research={path} '
+                        f'({time.time() - t1:.1f}s)'
                     )
             except Exception as e:
                 self.stdout.write(f'    FAILED after {time.time() - t0:.1f}s: {e!r}')
@@ -271,5 +264,7 @@ class Command(BaseCommand):
                 failed.append(jid)
 
         self.stdout.write(
-            f'\n=== DONE: {created} created, {scored} scored, {len(failed)} failed: {failed} ==='
+            f'\n=== DONE: {created} created, {scored} scored, '
+            f'{skipped_irrelevant} skipped as irrelevant, {len(failed)} failed: {failed}, '
+            f'LLM spend ${llm_cost_since(run_started_at):.2f} ==='
         )
