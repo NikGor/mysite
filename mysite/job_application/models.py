@@ -40,6 +40,14 @@ class JobApplication(models.Model):
         ('closed', 'Закрыта'),
     ]
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='draft')
+    # Furthest point the application got to. Only ever moves forward (see save()), so a
+    # terminal status like rejected/closed doesn't erase that there was an interview.
+    STAGE_ORDER = ['sent', 'response_received', 'interview', 'accepted']
+    reached_stage = models.CharField(
+        max_length=50, choices=STATUS_CHOICES[1:5],
+        blank=True, null=True, verbose_name="Дальше всего дошло",
+        help_text="Самый дальний этап заявки; сам поднимается при смене статуса и не опускается при отказе/закрытии",
+    )
     salary_range = models.CharField(max_length=512, blank=True, null=True)
     vacation_days = models.CharField(max_length=512, blank=True, null=True)
     other_benefits = models.TextField(blank=True, null=True)
@@ -100,6 +108,19 @@ class JobApplication(models.Model):
         default=False, verbose_name="Agency end-client verified good",
         help_text="Real employer behind this agency listing is known and good - lifts the default Tier B cap",
     )
+
+    def save(self, *args, **kwargs):
+        candidates = [self.status, self.reached_stage]
+        if self.phone_interview_date or self.onsite_interview_date:
+            candidates.append('interview')
+        ranks = [self.STAGE_ORDER.index(s) for s in candidates if s in self.STAGE_ORDER]
+        stage = self.STAGE_ORDER[max(ranks)] if ranks else None
+        if stage != self.reached_stage:
+            self.reached_stage = stage
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                kwargs['update_fields'] = {*update_fields, 'reached_stage'}
+        super().save(*args, **kwargs)
 
     @property
     def is_agency_unverified(self):

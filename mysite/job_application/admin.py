@@ -290,7 +290,7 @@ class JobApplicationAdmin(admin.ModelAdmin):
     )
     list_filter = (
         TierFilter,
-        NotInterestedFilter, 'status', 'work_mode', 'is_agency',
+        NotInterestedFilter, 'status', 'reached_stage', 'work_mode', 'is_agency',
         'is_switzerland', 'ats_verdict', 'language', 'german_level', ATSScoreRangeFilter, HasAddressFilter,
         'has_growth_signal', 'has_toxic_flag', 'has_overregulated_flag', 'german_blocks_daily_work',
         'is_high_upside_brand', 'agency_end_client_verified',
@@ -365,13 +365,31 @@ class JobApplicationAdmin(admin.ModelAdmin):
         'closed': ('🔒 Закрыта', '#555'),
     }
 
+    REACHED_STAGES = {
+        'sent': '📨 была подача',
+        'response_received': '💬 был ответ',
+        'interview': '🗓 было собеседование',
+        'accepted': '🎉 был оффер',
+    }
+
     def progress_badge(self, obj):
         label, color = self.PROGRESS_STATES.get(obj.status, ('📝 Черновик', '#999'))
-        return format_html(
+        badge = format_html(
             '<span style="background:{}; color:#fff; padding:2px 8px; border-radius:4px; '
             'font-size:0.85em; white-space:nowrap">{}</span>',
             color, label,
         )
+        # Show how far it got when the current status is past/outside the pipeline
+        # (rejected/closed/not_interested), so an interview isn't hidden behind "Отказ".
+        # A rejection already implies the application was sent, so that case stays a single badge.
+        if obj.reached_stage and obj.status not in obj.STAGE_ORDER and not (
+            obj.status == 'rejected' and obj.reached_stage == 'sent'
+        ):
+            badge = format_html(
+                '{}<br><span style="color:#9b59b6; font-size:0.8em; white-space:nowrap">{}</span>',
+                badge, self.REACHED_STAGES[obj.reached_stage],
+            )
+        return badge
 
     progress_badge.short_description = 'Статус'
 
@@ -473,7 +491,7 @@ class JobApplicationAdmin(admin.ModelAdmin):
         }),
         ('Application status', {
             'fields': (
-                'status', 'phone_interview_date', 'onsite_interview_date', 'date_added',
+                'status', 'reached_stage', 'phone_interview_date', 'onsite_interview_date', 'date_added',
             )
         }),
     )

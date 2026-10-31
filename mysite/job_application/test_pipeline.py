@@ -242,6 +242,22 @@ class OfficeOrderTests(TestCase):
         self.assertEqual(services._vacancy_office_first(offices, ''), offices)
 
 
+class ReachedStageTests(TestCase):
+    def test_reached_stage_survives_rejection_and_closure(self):
+        job = JobApplication.objects.create(company_name='Acme AG')
+        self.assertIsNone(job.reached_stage)
+        for status in ('sent', 'interview', 'rejected', 'closed'):
+            job.status = status
+            job.save()
+        self.assertEqual(JobApplication.objects.get(pk=job.pk).reached_stage, 'interview')
+
+    def test_interview_date_counts_as_interview(self):
+        job = JobApplication.objects.create(company_name='Acme AG', status='sent')
+        job.phone_interview_date = '2026-10-01T10:00:00Z'
+        job.save(update_fields=['phone_interview_date'])
+        self.assertEqual(JobApplication.objects.get(pk=job.pk).reached_stage, 'interview')
+
+
 class RunParallelTests(TestCase):
     def test_results_in_order_and_context_propagates(self):
         var = contextvars.ContextVar('var', default='unset')
