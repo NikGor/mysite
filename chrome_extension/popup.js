@@ -45,11 +45,60 @@ function notifyOverlayResult(tabId, data) {
   }
 }
 
+// Rejects with the server's own `error` message when there is one, so the popup
+// shows "Could not fetch …" instead of a bare status code.
+function requestJSON(url, options) {
+  return fetch(url, options).then(response =>
+    response.json().catch(() => ({})).then(data => {
+      if (!response.ok) {
+        throw new Error(data.error || `Request failed with status ${response.status}`);
+      }
+      return data;
+    })
+  );
+}
+
+function parseText(text, pageUrl) {
+  return requestJSON(`${API_BASE}/api/parse_text/`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: text, url: pageUrl || null}),
+  });
+}
+
+function runParse(button, spinner, tabId, request) {
+  request
+    .then(data => {
+      setBusy(button, spinner, false);
+      showResult(data);
+      notifyOverlayResult(tabId, data);
+    })
+    .catch(error => {
+      setBusy(button, spinner, false);
+      showStatus('error', 'Parsing failed', error.message);
+      overlayMessage(tabId, {message: 'vp_status', kind: 'error', text: error.message});
+    });
+}
+
+// Reads text from the active tab; resolves to '' when the page can't be scripted
+// (chrome://, the web store, etc.).
+function readFromTab(tabId, func) {
+  return new Promise(resolve => {
+    chrome.scripting.executeScript({target: {tabId: tabId}, func: func}, function(results) {
+      void chrome.runtime.lastError;
+      resolve((results && results[0] && results[0].result) || '');
+    });
+  });
+}
+
 var parseBtn = document.getElementById('parse-btn');
 var parseSpinner = document.getElementById('parse-spinner');
 var textBtn = document.getElementById('text-parse-btn');
 var textSpinner = document.getElementById('text-spinner');
 
+// Sends the text the browser already rendered (with the user's session) instead of
+// letting the server re-fetch the URL: LinkedIn answers 429 to anonymous requests
+// from the Pi. Server-side fetch stays only as a fallback for unscriptable pages.
 parseBtn.addEventListener('click', function() {
   setBusy(parseBtn, parseSpinner, true);
 
@@ -58,23 +107,12 @@ parseBtn.addEventListener('click', function() {
     var pageUrl = activeTab.url;
     overlayMessage(activeTab.id, {message: 'vp_show', text: 'Parsing this page…'});
 
-    fetch(`${API_BASE}/api/parse_url/?url=${encodeURIComponent(pageUrl)}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        setBusy(parseBtn, parseSpinner, false);
-        showResult(data);
-        notifyOverlayResult(activeTab.id, data);
-      })
-      .catch(error => {
-        setBusy(parseBtn, parseSpinner, false);
-        showStatus('error', 'Parsing failed', error.message);
-        overlayMessage(activeTab.id, {message: 'vp_status', kind: 'error', text: error.message});
-      });
+    readFromTab(activeTab.id, () => document.body.innerText).then(pageText => {
+      var request = pageText
+        ? parseText(pageText, pageUrl)
+        : requestJSON(`${API_BASE}/api/parse_url/?url=${encodeURIComponent(pageUrl)}`);
+      runParse(parseBtn, parseSpinner, activeTab.id, request);
+    });
   });
 });
 
@@ -83,42 +121,15 @@ textBtn.addEventListener('click', function() {
 
   chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
     var activeTab = tabs[0];
-    chrome.scripting.executeScript({
-      target: {tabId: activeTab.id},
-      func: () => window.getSelection().toString(),
-    }, function(results) {
-      var selectedText = results && results[0] && results[0].result;
+    readFromTab(activeTab.id, () => window.getSelection().toString()).then(selectedText => {
       if (!selectedText) {
         setBusy(textBtn, textSpinner, false);
         showStatus('error', 'Nothing selected', 'Select the vacancy text on the page first.');
         return;
       }
-
       overlayMessage(activeTab.id, {message: 'vp_show', text: 'Parsing selected text…'});
-
-      fetch(`${API_BASE}/api/parse_text/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({text: selectedText})
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        setBusy(textBtn, textSpinner, false);
-        showResult(data);
-        notifyOverlayResult(activeTab.id, data);
-      })
-      .catch(error => {
-        setBusy(textBtn, textSpinner, false);
-        showStatus('error', 'Parsing failed', error.message);
-        overlayMessage(activeTab.id, {message: 'vp_status', kind: 'error', text: error.message});
-      });
+      runParse(textBtn, textSpinner, activeTab.id,
+        parseText(selectedText, activeTab.url));
     });
   });
 });

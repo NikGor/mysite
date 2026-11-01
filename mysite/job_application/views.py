@@ -66,5 +66,8 @@ class ParseTextView(View):
         if not text:
             return JsonResponse({'error': 'No text provided'}, status=400)
 
-        payload, http_status = _ingest(text)
+        # The extension sends the rendered page text plus its URL, so the server never
+        # has to fetch the page itself (LinkedIn rate-limits the Pi with 429).
+        url = body.get('url') or None
+        payload, http_status = _ingest(text, url=url)
         return JsonResponse(payload, status=http_status)

@@ -280,3 +280,9 @@ class ViewTests(PipelineTestCase):
         response = self.client.post('/api/parse_text/', data=json.dumps({'text': 'x'}), content_type='application/json')
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()['company_name'], 'Acme AG')
+
+    def test_parse_text_keeps_page_url(self):
+        url = 'https://www.linkedin.com/jobs/view/4484879212/'
+        response = self.client.post('/api/parse_text/', data=json.dumps({'text': 'x', 'url': url}), content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(JobApplication.objects.get(pk=response.json()['id']).url, url)
